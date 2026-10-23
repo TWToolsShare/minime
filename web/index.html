@@ -15,6 +15,16 @@
   } catch (e) {
     document.documentElement.classList.add('light');
   }
+  // 语言在首屏渲染前定好，避免闪烁；默认跟随系统，可手动覆盖
+  try {
+    var _lang = localStorage.getItem('minime.lang');
+    if (_lang !== 'en' && _lang !== 'zh'){
+      _lang = (navigator.language || 'zh').toLowerCase().startsWith('zh') ? 'zh' : 'en';
+    }
+    document.documentElement.setAttribute('lang', _lang === 'en' ? 'en' : 'zh-CN');
+  } catch (e) {
+    document.documentElement.setAttribute('lang', 'zh-CN');
+  }
 </script>
 <style>
   /* ============================================================
@@ -643,6 +653,7 @@
     </button>
   </nav>
   <div class="stat" id="stat"></div>
+  <button class="sm ghost" id="lang-btn" title="切换中文 / English">EN</button>
   <button class="sm ghost" id="theme-btn" title="切换明暗">浅色</button>
   <button class="sm ghost" id="help-btn" title="怎么用">? 怎么用</button>
 </header>
@@ -660,15 +671,15 @@ const state = {view:'atoms', q:'', project:'', tech:'', facet:'', kind:'', statu
   limit:40, sideOpen:'kind'};
 let FACETS = {};
 
-const KIND_CN = {decision:'决策',preference:'偏好',fact:'事实',troubleshooting:'排障',
-  pattern:'模式',event:'事件',insight:'洞察'};
-const DIM_CN = {project:'项目', tech:'技术', scene:'场景', topic:'主题', activity:'活动'};
-const STATE_CN = {active:'正常', dormant:'已降权', superseded:'已取代', archived:'已归档'};
-const FB_CN = {accepted:'已采用', cited:'已引用', rejected:'已标记不相关',
-  verified:'已核实', corrected:'已纠正'};
-const VIEW_CN = {chat:'对话', progress:'处理进度', atoms:'知识浏览', graph:'知识图谱',
+const KIND_CN = cnDict({decision:'决策',preference:'偏好',fact:'事实',troubleshooting:'排障',
+  pattern:'模式',event:'事件',insight:'洞察'});
+const DIM_CN = cnDict({project:'项目', tech:'技术', scene:'场景', topic:'主题', activity:'活动'});
+const STATE_CN = cnDict({active:'正常', dormant:'已降权', superseded:'已取代', archived:'已归档'});
+const FB_CN = cnDict({accepted:'已采用', cited:'已引用', rejected:'已标记不相关',
+  verified:'已核实', corrected:'已纠正'});
+const VIEW_CN = cnDict({chat:'对话', progress:'处理进度', atoms:'知识浏览', graph:'知识图谱',
   profile:'能力画像', workspaces:'工作区', collectors:'采集源', packs:'资源包',
-  logs:'运行日志', settings:'设置', archive:'归档'};
+  logs:'运行日志', settings:'设置', archive:'归档'});
 
 // 统一请求：网络异常/非 2xx 都转成 {error}，调用方只处理一种形态
 async function get(url){
@@ -709,6 +720,566 @@ function fmtDur(s){
   return `${(s/86400).toFixed(s % 86400 ? 1 : 0)} 天`;
 }
 
+// ---------------- 多语言：跟随系统，可手动切换；仅翻译界面 UI，用户知识正文不翻译
+// 用法：
+//   T('zh文案')            —— 取当前语言对应文案（zh 即原文，en 用字典）
+//   T({zh:'中文', en:'English'})  —— 显式双语
+//   T({zh:..., en:...}, arg1, arg2)  —— 带插值，en 串里用 {0}{1} 占位
+// 当前语言：'zh' | 'en'，首屏由 <head> 的 pre-paint 脚本把 html lang 设好，这里同步
+let CUR_LANG = (document.documentElement.getAttribute('lang') === 'en') ? 'en' : 'zh';
+const I18N = {
+  '取消': {en: 'Cancel'},
+  '确定': {en: 'OK'},
+  '加载中…': {en: 'Loading…'},
+  '加载失败': {en: 'Failed to load'},
+  '重试': {en: 'Retry'},
+  '已显示全部 {0} 条': {en: 'Showing all {0}'},
+  '加载更多（还有 {0} 条）': {en: 'Load more ({0} more)'},
+  '加载中…': {en: 'Loading…'},
+  '搜索标题或正文…': {en: 'Search title or content…'},
+  '清空': {en: 'Clear'},
+  '全部清空': {en: 'Clear all'},
+  '命中 {0} 条（条件过严，可移除一项）': {en: '{0} matched (too strict, try removing a filter)'},
+  '知识库为空': {en: 'Knowledge base is empty'},
+  '当前筛选没有命中知识': {en: 'No knowledge matches the current filters'},
+  '该状态下没有知识': {en: 'No knowledge in this state'},
+  '切换左侧「状态 → 正常」查看全部知识': {en: 'Switch "Status → Active" on the left to see all knowledge'},
+  '更换关键词，或移除上面的筛选条件': {en: 'Try a different keyword, or remove a filter above'},
+  '去处理进度': {en: 'Go to progress'},
+  '知识浏览': {en: 'Knowledge'},
+  '当前只显示「{0}」知识：{1}': {en: 'Only showing "{0}" knowledge: {1}'},
+  '降权条目仍会在正常命中不足时被召回；点「恢复」可立即回到正常检索。': {en: 'Demoted items still surface when normal hits are few; click "Restore" to bring it back.'},
+  '归档条目不参与检索；点「恢复」可重新启用。': {en: 'Archived items are excluded from search; click "Restore" to re-enable.'},
+  '已取代条目保留用于追溯；点「恢复」可重新启用。': {en: 'Superseded items are kept for traceability; click "Restore" to re-enable.'},
+  '筛选': {en: 'Filter'},
+  '详情': {en: 'Details'},
+  '恢复': {en: 'Restore'},
+  '采用': {en: 'Adopt'},
+  '引用': {en: 'Cite'},
+  '不相关': {en: 'Not relevant'},
+  '反馈：': {en: 'Feedback: '},
+  '暂无': {en: 'None'},
+  '正文': {en: 'Body'},
+  '标签': {en: 'Tags'},
+  '来源': {en: 'Source'},
+  '评分拆解': {en: 'Score breakdown'},
+  '使用反馈': {en: 'Usage feedback'},
+  '有效期': {en: 'Validity'},
+  '长期': {en: 'Indefinite'},
+  '已记录「不相关」': {en: 'Marked not relevant'},
+  '已采用：后续检索会提高该条权重': {en: 'Adopted: this item gets higher weight in future search'},
+  '已引用：后续检索会提高该条权重': {en: 'Cited: this item gets higher weight in future search'},
+  '已恢复，重新参与检索': {en: 'Restored, back in search'},
+  '该条当前无需恢复': {en: 'This item does not need restoring'},
+  '该条已从「已降权」恢复，重新参与检索': {en: 'This item recovered from "Demoted", back in search'},
+  '记录失败': {en: 'Failed to record'},
+  '连续多次「不相关」，该条进入「已降权」；正常命中不足时仍会召回，可在「状态 → 已降权」恢复': {en: 'Marked not relevant repeatedly; this item is now "Demoted" but still surfaces when hits are few. Restore via "Status → Demoted".'},
+  '已记录「不相关」（{0}/{1}）；再标记 {2} 次将降权': {en: 'Marked not relevant ({0}/{1}); {2} more to demote'},
+  '置信': {en: 'Confidence'},
+  '可靠': {en: 'Veracity'},
+  '评分': {en: 'Score'},
+  '关闭（Esc）': {en: 'Close (Esc)'},
+  '处理进度': {en: 'Progress'},
+  '刷新于': {en: 'Refreshed at'},
+  '按 ① 采集、② 清洗、③ 归纳依次执行；② 完成后即可在「对话」中提问，③ 提升回答质量': {en: 'Run ① Collect, ② Clean, ③ Summarize in order; ask in Chat after ②, quality improves after ③'},
+  '采集': {en: 'Collect'},
+  '清洗成知识': {en: 'Clean into knowledge'},
+  'LLM 归纳': {en: 'LLM summarize'},
+  '再采一次': {en: 'Collect again'},
+  '开始采集': {en: 'Start collecting'},
+  '重新清洗': {en: 'Re-clean'},
+  '归纳一批（上限 {0} 轮；待处理 {1} 轮）': {en: 'Summarize a batch (max {0}; {1} pending)'},
+  '已全部归纳': {en: 'All summarized'},
+  '下一步：在「对话」中提问。': {en: 'Next: ask in "Chat".'},
+  '回答仅依据知识库并标注来源；点击来源可查看原文。若结果不准确，可回到本页补充归纳。': {en: 'Answers use only the knowledge base with cited sources; click a source to see the original. Come back here to add more summaries if results are off.'},
+  '去对话 →': {en: 'Go to chat →'},
+  'LLM 归纳进度': {en: 'LLM summarize progress'},
+  '未启用': {en: 'Disabled'},
+  '待处理': {en: 'Pending'},
+  '有实质改动的轮次': {en: 'turns with real changes'},
+  '归纳出新知识': {en: 'New knowledge'},
+  '模型提炼的决策/偏好/教训': {en: 'decisions/preferences/lessons extracted by model'},
+  '知识库总量': {en: 'Total knowledge'},
+  '含规则抽取与 LLM 归纳': {en: 'rule extraction + LLM summaries'},
+  '每批上限 {0} 轮': {en: 'max {0} turns per batch'},
+  '快照共 {0} 轮，其中 {1} 轮有实质改动（改动 ≥ 5 行或新增 ≥ 2 个文件）。已归纳 {2} 轮，其中 {3} 轮产出了新知识。{4}': {en: 'Snapshot has {0} turns, {1} with real changes (≥5 lines or ≥2 new files). Summarized {2}, of which {3} produced knowledge. {4}'},
+  '请在「设置」中启用「LLM 归纳」后再执行': {en: 'Enable "LLM summarize" in Settings before running'},
+  '立即归纳一批': {en: 'Summarize a batch now'},
+  '归纳全部（{0} 轮）': {en: 'Summarize all ({0} turns)'},
+  '归纳全部': {en: 'Summarize all'},
+  '更新知识库（采集 → 索引 → 清洗）': {en: 'Update knowledge base (collect → index → clean)'},
+  '归纳全部一次性处理所有待处理轮次，单轮约 40 秒，耗时较长，可在顶栏随时停止。命令行：minime llm --run 20 / minime llm --all': {en: 'Summarize all processes every pending turn at once; ~40s per turn and may take long — stop anytime from the top bar. CLI: minime llm --run 20 / minime llm --all'},
+  '知识来源分布': {en: 'Knowledge source distribution'},
+  '知识类型': {en: 'Knowledge types'},
+  '采集源最近一次': {en: 'Latest collection'},
+  '后台任务': {en: 'Background jobs'},
+  '暂无': {en: 'None'},
+  '还没有后台任务记录': {en: 'No background job records yet'},
+  '完成采集与清洗后，知识将显示在这里': {en: 'Knowledge will appear here after collection and cleaning'},
+  '能力画像': {en: 'Profile'},
+  '从知识库统计出的 8 个维度，证据数是支撑该评分的知识条数': {en: '8 dimensions derived from the knowledge base; evidence = number of items supporting the score'},
+  '生成于': {en: 'Generated at'},
+  '项目分布': {en: 'Project distribution'},
+  '技术栈': {en: 'Tech stack'},
+  '工作区': {en: 'Workspaces'},
+  '仅显示已采集的工作区；未出现表示尚未采集': {en: 'Only collected workspaces shown; missing means not yet collected'},
+  '共 {0} 个工作区 · 索引会话 {1} · 有逐轮快照 {2}': {en: '{0} workspaces · {1} indexed sessions · {2} with per-turn snapshots'},
+  '工作区': {en: 'Workspace'},
+  '路径': {en: 'Path'},
+  '会话数': {en: 'Sessions'},
+  '有快照': {en: 'Snapshots'},
+  '文件历史': {en: 'File history'},
+  '最近活动': {en: 'Recent activity'},
+  '设置': {en: 'Settings'},
+  '配置保存即写入 config.json；端口改动与面板代码更新需重启': {en: 'Saving writes to config.json; port changes and panel code updates need a restart'},
+  '共 {0} 项配置 · 当前端口 {1}': {en: '{0} settings · current port {1}'},
+  '撤销修改': {en: 'Discard changes'},
+  '保存全部': {en: 'Save all'},
+  '重启面板': {en: 'Restart panel'},
+  '重启面板进程，使端口等改动生效': {en: 'Restart the panel process to apply port and other changes'},
+  '同步与连通测试': {en: 'Sync & connectivity'},
+  '把高可信度的决策/偏好/教训单向同步到 mnemosyne。': {en: 'One-way sync high-trust decisions/preferences/lessons to mnemosyne.'},
+  '预览候选': {en: 'Preview candidates'},
+  '立即同步': {en: 'Sync now'},
+  '测试模型连通': {en: 'Test model'},
+  '有未保存的修改': {en: 'Unsaved changes'},
+  '部分配置未通过校验，请查看提示': {en: 'Some settings failed validation; see hints'},
+  '已保存 {0} 项': {en: 'Saved {0} items'},
+  '端口改为 {0}，重启后生效': {en: 'Port changed to {0}; applies after restart'},
+  '端口已改为 {0}，重启后生效': {en: 'Port changed to {0}; applies after restart'},
+  '面板重启中，稍后自动刷新': {en: 'Restarting panel, refreshing shortly'},
+  '重启后未能连接，请手动执行 minime web': {en: 'Failed to reconnect after restart; run minime web manually'},
+  '连接正常': {en: 'Connected'},
+  '当前模型 {0} · 可用 {1} 个': {en: 'Current model {0} · {1} available'},
+  '连接失败': {en: 'Connection failed'},
+  '模型连接正常': {en: 'Model connected'},
+  '模型连接失败': {en: 'Model connection failed'},
+  '读取中…': {en: 'Reading…'},
+  '同步中…': {en: 'Syncing…'},
+  '暂无待同步候选': {en: 'No candidates to sync'},
+  '已同步 {0} 条': {en: 'Synced {0} items'},
+  '当前模型 {0} · 可用 {1} 个': {en: 'Current model {0} · {1} available'},
+  '可信层级': {en: 'trust tier'},
+  '可靠度': {en: 'veracity'},
+  '资源包': {en: 'Packs'},
+  '已开启的知识集参与检索与对话；全部关闭时不限制检索范围': {en: 'Enabled collections join search and chat; all off means no scope limit'},
+  '一个资源包可包含多套知识集；自己的包可导出分享，他人导入的包仅可使用': {en: 'A pack holds multiple collections; your packs can be exported, imported packs are read-only'},
+  '我的资源包': {en: 'My packs'},
+  '敏感度分布：公开 {0} · 内部 {1} · 私密 {2}': {en: 'Sensitivity: public {0} · internal {1} · private {2}'},
+  '还没有资源包': {en: 'No packs yet'},
+  '资源包名称，如「架构方法论」': {en: 'Pack name, e.g. "Architecture methods"'},
+  '作者（可选）': {en: 'Author (optional)'},
+  '+ 新建资源包': {en: '+ New pack'},
+  '按条件筛出一套知识集': {en: 'Filter a collection'},
+  '设置筛选条件，预览命中结果后创建知识集': {en: 'Set filters, preview, then create a collection'},
+  '目标包': {en: 'Target pack'},
+  '知识集名称': {en: 'Collection name'},
+  '关键词': {en: 'Keyword'},
+  '标题或正文包含的关键词，可留空': {en: 'Keywords in title/body, optional'},
+  '类型': {en: 'Type'},
+  '敏感度': {en: 'Sensitivity'},
+  '标签': {en: 'Tags'},
+  '预览命中': {en: 'Preview matches'},
+  '创建知识集': {en: 'Create collection'},
+  '导出': {en: 'Export'},
+  '只导出自己的包；他人导入的包不可导出': {en: 'Only your own packs can be exported'},
+  '导出哪个包': {en: 'Export which pack'},
+  '包含哪些知识集': {en: 'Which collections'},
+  '文件名': {en: 'File name'},
+  '作者': {en: 'Author'},
+  '属性': {en: 'Attributes'},
+  '严格脱敏': {en: 'Strict masking'},
+  '包含能力画像': {en: 'Include profile'},
+  '包含原始归档清单（谨慎）': {en: 'Include raw archive list (careful)'},
+  '导出资源包': {en: 'Export pack'},
+  '重新体检': {en: 'Re-check'},
+  '导入他人资源包': {en: 'Import a pack'},
+  '上传后预览，确认后写入；导入后知识集默认关闭，可按需开启': {en: 'Preview after upload, write on confirm; collections start disabled'},
+  '选择 .minime.zip 文件': {en: 'Choose .minime.zip'},
+  '也可以手动把包放进 store/packs，刷新即可看到。': {en: 'Or drop the file into store/packs and refresh.'},
+  '本地还没有包文件': {en: 'No pack files locally'},
+  '包文件': {en: 'Pack file'},
+  '操作': {en: 'Actions'},
+  '查看': {en: 'View'},
+  '下载': {en: 'Download'},
+  '重新导入': {en: 'Re-import'},
+  '删除文件': {en: 'Delete file'},
+  '脱敏体检': {en: 'Privacy check'},
+  '扫描 {0} 条知识 · 导出时按下面的处理方式自动处理': {en: 'Scanned {0} items · applied automatically on export'},
+  '未发现路径、密钥、邮箱、手机号等敏感内容': {en: 'No paths, keys, emails, or phones found'},
+  '给新知识补判敏感度': {en: 'Re-assign sensitivity for new items'},
+  '我的': {en: 'Mine'},
+  '他人导入': {en: 'Imported'},
+  '全部关闭': {en: 'All off'},
+  '开启': {en: 'On'},
+  '开启 {0}/{1}': {en: '{0}/{1} on'},
+  '条知识': {en: 'items'},
+  '套知识集': {en: 'collections'},
+  '还没有知识集': {en: 'No collections yet'},
+  '他人导入的包只可使用，不可导出、不可编辑': {en: 'Imported packs are read-only: no export, no edit'},
+  '删除包': {en: 'Delete pack'},
+  '新建知识集': {en: 'New collection'},
+  '移除': {en: 'Remove'},
+  '（{0}）': {en: ' ({0})'},
+  '匿名': {en: 'Anonymous'},
+  '来自 {0}': {en: 'from {0}'},
+  '查看内容': {en: 'View contents'},
+  '前 {0} 条': {en: 'first {0}'},
+  '空的': {en: 'Empty'},
+  '跟随默认': {en: 'Use default'},
+  '已开启': {en: 'Enabled'},
+  '已关闭': {en: 'Disabled'},
+  '当前无已开启知识集，检索不限制范围': {en: 'No collections enabled; search has no scope limit'},
+  '该包还没有知识集': {en: 'This pack has no collections yet'},
+  '命中 {0} 条': {en: '{0} matched'},
+  '没有命中，放宽条件再试': {en: 'No matches; loosen filters'},
+  '只显示前 {0} 条': {en: 'showing first {0}'},
+  '请先填写知识集名称': {en: 'Enter a collection name first'},
+  '请先填写资源包名称': {en: 'Enter a pack name first'},
+  '上传中…（{0} KB）': {en: 'Uploading… ({0} KB)'},
+  '上传失败：{0}': {en: 'Upload failed: {0}'},
+  '未知错误': {en: 'unknown error'},
+  '上传中断，请重试': {en: 'Upload interrupted, retry'},
+  '已创建知识集「{0}」（当前为空）；用下方筛选条件向其中添加内容': {en: 'Created collection "{0}" (empty); use filters below to fill it'},
+  '移除知识集「{0}」？': {en: 'Remove collection "{0}"?'},
+  '删除资源包「{0}」？': {en: 'Delete pack "{0}"?'},
+  '已移除': {en: 'Removed'},
+  '已删除资源包，知识仍在默认包里': {en: 'Pack deleted; knowledge remains in the default pack'},
+  '导入': {en: 'Import'},
+  '导入完成': {en: 'Import done'},
+  '新增 {0} 条': {en: 'added {0} items'},
+  '全库 {0} 条': {en: '{0} total'},
+  '{0} 条知识、{1} 套知识集。导入后{2}，成为独立的「他人导入」资源包。': {en: '{0} items, {1} collections. After import{2}, it becomes an independent "imported" pack.'},
+  '已创建「{0}」': {en: 'Created "{0}"'},
+  '已创建「{0}」，纳入 {1} 条': {en: 'Created "{0}" with {1} items'},
+  '已创建资源包「{0}」，接下来为它创建知识集': {en: 'Created pack "{0}"; now create collections for it'},
+  '已开启「{0}」': {en: 'Enabled "{0}"'},
+  '已关闭「{0}」': {en: 'Disabled "{0}"'},
+  '已创建知识集「{0}」（当前为空）；用下方筛选条件向其中添加内容': {en: 'Created collection "{0}" (empty); add content with the filters below'},
+  '下载这个包': {en: 'Download this pack'},
+  '导出完成，可以下载了': {en: 'Export done, ready to download'},
+  '体检中…': {en: 'Checking…'},
+  '删除包文件「{0}」？': {en: 'Delete pack file "{0}"?'},
+  '对方隐去': {en: 'Hidden by sender'},
+  '导入「{0}」？': {en: 'Import "{0}"?'},
+  '条知识、{0} 套知识集。导入后{1}，成为独立的「他人导入」资源包。': {en: ' items, {0} collections. After import{1}, it becomes an independent "imported" pack.'},
+  '默认关闭（可稍后开启）': {en: 'starts disabled (enable later)'},
+  '立即开启': {en: 'enabled immediately'},
+  '导入完成，新增 {0} 条': {en: 'Import done, added {0} items'},
+  '导入完成 · 新增 {0} 条 · 全库 {1} 条': {en: 'Import done · added {0} · {1} total'},
+  '资源包列表已出现「{0}」，开启需要使用的知识集即可。': {en: 'Pack "{0}" now appears in the list; enable the collections you need.'},
+  '环境变量覆盖': {en: 'Env override'},
+  '环境变量优先级高于面板保存值': {en: 'Env var takes priority over saved value'},
+  '环境变量 {0}': {en: 'Env var {0}'},
+  '切换明暗': {en: 'Toggle light/dark'},
+  '怎么用': {en: 'How to use'},
+  '浅色': {en: 'Light'},
+  '深色': {en: 'Dark'},
+  '已切到浅色': {en: 'Switched to light'},
+  '已切到深色': {en: 'Switched to dark'},
+  '更多': {en: 'More'},
+  '收起': {en: 'Less'},
+  '展开更多：处理进度、工作区、采集源、运行日志、设置、归档': {en: 'More: progress, workspaces, collectors, logs, settings, archive'},
+  '对话': {en: 'Chat'},
+  '知识图谱': {en: 'Graph'},
+  '更多': {en: 'More'},
+  '知识类型': {en: 'Knowledge types'},
+  '状态': {en: 'Status'},
+  '正常': {en: 'Active'},
+  '已降权': {en: 'Demoted'},
+  '已取代': {en: 'Superseded'},
+  '已归档': {en: 'Archived'},
+  '知识库共 {0} 条 · 标签筛选位于「知识浏览」': {en: 'Knowledge base has {0} items · tag filters live in "Knowledge"'},
+  '当前视图': {en: 'Current view'},
+  '命中 {0} / 全库 {1}': {en: '{0} matched / {1} total'},
+  '搜索': {en: 'Search'},
+  '项目': {en: 'Project'},
+  '技术': {en: 'Tech'},
+  '场景': {en: 'Scene'},
+  '主题': {en: 'Topic'},
+  '活动': {en: 'Activity'},
+  '决策': {en: 'Decision'},
+  '偏好': {en: 'Preference'},
+  '事实': {en: 'Fact'},
+  '排障': {en: 'Troubleshooting'},
+  '模式': {en: 'Pattern'},
+  '事件': {en: 'Event'},
+  '洞察': {en: 'Insight'},
+  '采用 {0}': {en: 'Adopted {0}'},
+  '引用 {0}': {en: 'Cited {0}'},
+  '不相关 {0}': {en: 'Not relevant {0}'},
+  '核实 {0}': {en: 'Verified {0}'},
+  '纠正 {0}': {en: 'Corrected {0}'},
+  '已采用': {en: 'Adopted'},
+  '已引用': {en: 'Cited'},
+  '已标记不相关': {en: 'Marked not relevant'},
+  '已核实': {en: 'Verified'},
+  '已纠正': {en: 'Corrected'},
+  '公开': {en: 'Public'},
+  '内部': {en: 'Internal'},
+  '私密': {en: 'Private'},
+  '全局': {en: 'Global'},
+  '项目 ': {en: 'Project '},
+  '技术 ': {en: 'Tech '},
+  '本地文档': {en: 'Local docs'},
+  '会话快照': {en: 'Session snapshots'},
+  'Trae 记忆': {en: 'Trae memory'},
+  'LLM 归纳': {en: 'LLM summary'},
+  'Obsidian': {en: 'Obsidian'},
+  '云端会话': {en: 'Cloud sessions'},
+  '工作区索引': {en: 'Workspace index'},
+  '文件历史': {en: 'File history'},
+  'WorkBuddy 会话': {en: 'WorkBuddy sessions'},
+  'WorkBuddy 记忆': {en: 'WorkBuddy memory'},
+  'Qoder 会话': {en: 'Qoder sessions'},
+  '豆包会话': {en: 'Doubao sessions'},
+  '普通': {en: 'Info'},
+  '警告': {en: 'Warning'},
+  '错误': {en: 'Error'},
+  'LLM 归纳进度': {en: 'LLM summarize progress'},
+  'LLM 归纳': {en: 'LLM summarize'},
+  '采集': {en: 'Collect'},
+  '流水线': {en: 'Pipeline'},
+  '完成': {en: 'Done'},
+  '进行中': {en: 'Running'},
+  '已停止': {en: 'Stopped'},
+  '失败': {en: 'Failed'},
+  '未到时间': {en: 'Not due'},
+  '不可用': {en: 'Unavailable'},
+  '停止': {en: 'Stop'},
+  '停止中…': {en: 'Stopping…'},
+  '已请求停止，当前条目完成后退出': {en: 'Stop requested; exits after current item'},
+  '关键词/语义': {en: 'Keyword/Semantic'},
+  '重要性': {en: 'Importance'},
+  '置信度': {en: 'Confidence'},
+  '新鲜度': {en: 'Recency'},
+  '反馈': {en: 'Feedback'},
+  '可信度': {en: 'Trust'},
+  '语义相似度': {en: 'Semantic similarity'},
+  '项目': {en: 'Project'},
+  '技术': {en: 'Tech'},
+  '概念': {en: 'Concept'},
+  '人物': {en: 'Person'},
+  '工具': {en: 'Tool'},
+  '文件': {en: 'File'},
+  '组织': {en: 'Org'},
+  '点击节点查看详情 · 拖拽平移 · 滚轮缩放': {en: 'Click a node for details · drag to pan · scroll to zoom'},
+  '正在加载关联信息…': {en: 'Loading related info…'},
+  '关联知识 {0} 条 · 关系 {1} 条': {en: '{0} related items · {1} relations'},
+  '关系': {en: 'Relations'},
+  '知识': {en: 'Knowledge'},
+  '暂无关联节点': {en: 'No related nodes'},
+  '相关知识': {en: 'Related knowledge'},
+  '这个节点下还没有知识': {en: 'No knowledge under this node yet'},
+  '在知识浏览中查看全部 {0} 条': {en: 'View all {0} in Knowledge'},
+  '运行日志': {en: 'Logs'},
+  '排查问题时优先查看；「错误」筛选可定位失败操作': {en: 'Check first when troubleshooting; the "Error" filter locates failures'},
+  '条（错误 {0}） · 只记录业务动作和采集结果，面板轮询不写入': {en: ' ({0} errors) · only business actions & collection, no polling'},
+  '全部': {en: 'All'},
+  '按事件名/内容过滤，回车生效': {en: 'Filter by event/contents, Enter to apply'},
+  '刷新': {en: 'Refresh'},
+  '文件 {0} · 上限 {1} 条': {en: 'File {0} · max {1}'},
+  '没有匹配的日志。执行采集或保存设置后会生成记录。': {en: 'No matching logs. Records appear after collecting or saving settings.'},
+  '归档': {en: 'Archive'},
+  '实体': {en: 'Entities'},
+  '轨迹': {en: 'Traces'},
+  '知识库共': {en: 'Library total'},
+  '条': {en: 'items'},
+  '标签筛选位于「知识浏览」': {en: 'tag filters are under "Knowledge"'},
+  '原始数据都在这里；即使知识库被删，也能用 minime restore 重建': {en: 'All raw data lives here; minime restore rebuilds even if the KB is deleted'},
+  '原始归档（内容寻址，不可变）': {en: 'Raw archive (content-addressed, immutable)'},
+  '对象数 {0} · 总大小 {1}': {en: '{0} objects · {1} total'},
+  '位置': {en: 'Location'},
+  '索引': {en: 'Index'},
+  '会话轨迹': {en: 'Session traces'},
+  '快照会话 {0} · 有效轮次 {1} · 文件变更 {2}': {en: '{0} snapshot sessions · {1} valid turns · {2} file changes'},
+  '知识库': {en: 'Knowledge base'},
+  '知识 {0} 条 · 图谱实体 {1} · 关系 {2} · 反馈事件 {3}': {en: '{0} items · {1} entities · {2} relations · {3} feedback events'},
+  '采集源': {en: 'Collectors'},
+  '采集源异常时，行内会给出处理建议': {en: 'Inline tips appear when a collector fails'},
+  '归档 {0} 份 / {1} · 采集周期可在「设置 → 定时采集 · 各源周期」调整': {en: '{0} stored / {1} · adjust intervals in Settings → Scheduled collection'},
+  '信息源': {en: 'Source'},
+  '周期': {en: 'Interval'},
+  '最近': {en: 'Latest'},
+  '全部立即采集': {en: 'Collect all now'},
+  '采集仅获取原始数据，清洗后才会生成知识 → 在「处理进度」执行「更新知识库」': {en: 'Collecting only fetches raw data; cleaning turns it into knowledge → run "Update knowledge base" in Progress'},
+  '立即采集': {en: 'Collect now'},
+  '已开始采集「{0}」，完成后请在「处理进度」清洗': {en: 'Started collecting "{0}"; run clean in Progress when done'},
+  '全部采集源已开始采集': {en: 'All collectors started'},
+  '＋ 新对话': {en: '+ New chat'},
+  '新对话': {en: 'New chat'},
+  '重命名': {en: 'Rename'},
+  '基于知识库提问。Enter 发送，Shift+Enter 换行': {en: 'Ask based on the knowledge base. Enter to send, Shift+Enter for newline'},
+  '发送': {en: 'Send'},
+  '请先创建对话': {en: 'Create a chat first'},
+  '重命名对话': {en: 'Rename chat'},
+  '删除这段对话？': {en: 'Delete this conversation?'},
+  '聊天记录会一并删除，知识库不受影响。': {en: 'Chat history is removed too; the knowledge base is untouched.'},
+  '还没有对话': {en: 'No chats yet'},
+  '正在回答，本轮结束后可切换会话': {en: 'Answering now; switch after this turn'},
+  '向知识库提问': {en: 'Ask your knowledge base'},
+  '回答仅依据已采集的知识，并标注来源；点击来源可查看原文。': {en: 'Answers use only collected knowledge, with cited sources; click a source for the original.'},
+  '上一轮回答尚未结束，请稍后': {en: 'Previous answer still running, please wait'},
+  '新建对话失败': {en: 'Failed to create chat'},
+  '思考中…': {en: 'Thinking…'},
+  '保存': {en: 'Save'},
+  '删除': {en: 'Delete'},
+  '正在检索知识并生成回答…': {en: 'Retrieving knowledge and generating answer…'},
+  '回答失败：': {en: 'Answer failed: '},
+  '重新提问': {en: 'Ask again'},
+  '你': {en: 'You'},
+  '分身': {en: 'Twin'},
+  'minime 怎么用': {en: 'How minime works'},
+  '将工作轨迹采集为可检索、可对话的个人知识库。': {en: 'Turn your work traces into a searchable, chat-able personal knowledge base.'},
+  '常用命令': {en: 'Common commands'},
+  '完整说明见仓库 docs/使用手册.md': {en: 'Full guide: docs/使用手册.md in the repo'},
+  '① 处理进度': {en: '① Progress'},
+  '② 对话': {en: '② Chat'},
+  '③ 知识浏览': {en: '③ Knowledge'},
+  '④ 知识图谱': {en: '④ Graph'},
+  '⑤ 采集源': {en: '⑤ Collectors'},
+  '⑥ 设置': {en: '⑥ Settings'},
+  '按「采集 → 清洗 → 归纳」顺序执行；卡片会显示当前进度和下一步操作。': {en: 'Run in order "collect → clean → summarize"; cards show current progress and next step.'},
+  '基于知识库回答问题，并以 [1][2] 标注来源；点击来源可查看原文。同一会话支持连续追问，左侧为历史会话。': {en: 'Answers from the knowledge base with [1][2] source citations; click a source for the original. Follow-ups allowed in one session; history on the left.'},
+  '查看具体知识条目；左侧分组可折叠筛选。「采用 / 引用 / 不相关」会调整后续检索权重，连续不相关只降权，可在「状态」中恢复。': {en: 'Browse knowledge items; left groups collapse for filtering. "Adopt / Cite / Not relevant" adjust future search weight; repeated not-relevant only demotes, restorable in "Status".'},
+  '展示知识实体及其关系。点击节点可查看详情与关联节点，点击关联项可跳转并居中定位。': {en: 'Shows knowledge entities and relations. Click a node for details and neighbors; click a relation to jump and center.'},
+  '查看各数据源状态；异常时行内会给出处理建议。': {en: 'View each source status; inline tips appear on failure.'},
+  '配置采集目录、模型、定时周期与语义过滤等参数。': {en: 'Configure collection dirs, model, schedule, and semantic filters.'},
+  '导出完成，可以下载了': {en: 'Export done, ready to download'},
+  '已导出': {en: 'Exported'},
+  '条决策样例': {en: 'decision samples'},
+  '严格脱敏': {en: 'strict masking'},
+  '基础脱敏': {en: 'basic masking'},
+  '! 仍有残留：{0}；建议启用「严格脱敏」或取消勾选相关属性后重新导出': {en: '! Residual risk: {0}; enable "strict masking" or uncheck related attributes and re-export'},
+  '自查通过：包内未发现路径/密钥/邮箱/手机号': {en: 'Self-check passed: no paths/keys/emails/phones found'},
+  '已隐去：{0}': {en: 'Hidden: {0}'},
+  '下载这个包': {en: 'Download this pack'},
+  '请至少选择一个知识集': {en: 'Pick at least one collection'},
+  '有 {0} 个属性未勾选': {en: '{0} attributes unchecked'},
+  '未勾选的敏感属性会在导出时被隐去或脱敏（例如来源引用、项目标签、精确时间）。': {en: 'Unchecked sensitive attributes are hidden or masked on export (e.g. source refs, project tags, exact times).'},
+  '继续导出': {en: 'Continue export'},
+  '导出中…': {en: 'Exporting…'},
+  '已创建资源包「{0}」，接下来为它创建知识集': {en: 'Created pack "{0}"; now create collections for it'},
+  '请先填写资源包名称': {en: 'Enter a pack name first'},
+  '已创建知识集「{0}」（当前为空）；用下方筛选条件向其中添加内容': {en: 'Created collection "{0}" (empty); use filters below to fill it'},
+  '已创建「{0}」，纳入 {1} 条': {en: 'Created "{0}" with {1} items'},
+  '命中 {0} 条': {en: '{0} matched'},
+  '没有命中，放宽条件再试': {en: 'No matches; loosen filters'},
+  '只显示前 {0} 条': {en: 'showing first {0}'},
+  '请先填写知识集名称': {en: 'Enter a collection name first'},
+  '包预览：{0}': {en: 'Pack preview: {0}'},
+  '规模': {en: 'Size'},
+  '作者 / 创建': {en: 'Author / created'},
+  '知识类型': {en: 'Knowledge types'},
+  '知识集': {en: 'Collections'},
+  '隐私声明': {en: 'Privacy'},
+  '（残留：{0}）': {en: '(residual: {0})'},
+  '（自查通过）': {en: '(self-check passed)'},
+  '对方隐去': {en: 'Hidden by sender'},
+  '导入后立即开启': {en: 'Enable on import'},
+  '导入为资源包': {en: 'Import as pack'},
+  '导入后它成为独立的「他人导入」资源包：可开启使用、不可再次导出。': {en: 'It becomes an independent "imported" pack: usable, not re-exportable.'},
+  '包预览：': {en: 'Pack preview:'},
+  '上传中…（{0} KB）': {en: 'Uploading… ({0} KB)'},
+  '当前无已开启知识集，检索不限制范围': {en: 'No collections enabled; search is unrestricted'},
+  '已创建资源包「{0}」，接下来为它创建知识集': {en: 'Created pack "{0}", now create collections for it'},
+  '已创建知识集「{0}」（当前为空）；用下方筛选条件向其中添加内容': {en: 'Created collection "{0}" (empty); add content with the filters below'},
+  '未勾选的敏感属性会在导出时被隐去或脱敏（例如来源引用、项目标签、精确时间）。': {en: 'Unchecked sensitive attributes are hidden or masked on export (e.g. source refs, project tags, exact times).'},
+  '上传失败：{0}': {en: 'Upload failed: {0}'},
+  '上传中断，请重试': {en: 'Upload interrupted, retry'},
+  '已上传': {en: 'Uploaded'},
+  '删除包文件「{0}」？': {en: 'Delete pack file "{0}"?'},
+  '只删本地 zip，已经导入的知识不受影响。': {en: 'Only the local zip is removed; imported knowledge is unaffected.'},
+  '已删除包文件': {en: 'Pack file deleted'},
+  '导入「{0}」？': {en: 'Import "{0}"?'},
+  '条知识、{0} 套知识集。导入后{1}，成为独立的「他人导入」资源包。': {en: ' items, {0} collections. After import{1}, it becomes an independent "imported" pack.'},
+  '默认关闭（可稍后开启）': {en: 'starts disabled (enable later)'},
+  '立即开启': {en: 'enabled immediately'},
+  '导入完成，新增 {0} 条': {en: 'Import done, added {0} items'},
+  '导入完成 · 新增 {0} 条 · 全库 {1} 条': {en: 'Import done · added {0} · {1} total'},
+  '资源包列表已出现「{0}」，开启需要使用的知识集即可。': {en: 'Pack "{0}" now appears in the list; enable the collections you need.'},
+  '新建知识集': {en: 'New collection'},
+  '移除知识集「{0}」？': {en: 'Remove collection "{0}"?'},
+  '知识本身不会删除，仍保留在默认包里。': {en: 'The knowledge stays, kept in the default pack.'},
+  '移除': {en: 'Remove'},
+  '删除资源包「{0}」？': {en: 'Delete pack "{0}"?'},
+  '知识本身保留在默认包里，只删除这个包的分组关系。': {en: 'Knowledge stays in the default pack; only this pack grouping is removed.'},
+  '已删除资源包，知识仍在默认包里': {en: 'Pack deleted; knowledge remains in the default pack'},
+  '核心内容': {en: 'Core'},
+  '标签': {en: 'Tags'},
+  '来源': {en: 'Source'},
+  '可信度与时间': {en: 'Trust & time'},
+  '使用反馈': {en: 'Usage feedback'},
+  '敏感': {en: 'Sensitive'},
+  '环境变量优先级高于面板保存值': {en: 'Env var overrides saved value'},
+  '重启面板？': {en: 'Restart panel?'},
+  '面板进程就地重启，端口等设置立即生效；正在采集/归纳的后台任务会被中断。{0}': {en: 'The panel process restarts in place; port and settings apply immediately; running collect/summarize jobs are interrupted. {0}'},
+  '当前还有未保存的修改，重启将丢弃。': {en: 'There are unsaved changes that restart will discard.'},
+  '重启': {en: 'Restart'},
+  '还没有能力画像': {en: 'No profile yet'},
+  '先完成采集和清洗，再执行 minime update 生成': {en: 'Run collect and clean first, then minime update to generate'},
+  '证据': {en: 'evidence'},
+  '生成于': {en: 'Generated at'},
+  '轮已处理': {en: 'turns processed'},
+  '轮': {en: 'turns'},
+  '待运行': {en: 'pending'},
+  '后再跑': {en: 'until next run'},
+  '未运行': {en: 'not run yet'},
+  '对象数': {en: 'objects'},
+  '总大小': {en: 'total size'},
+  '快照会话': {en: 'snapshot sessions'},
+  '有效轮次': {en: 'valid turns'},
+  '文件变更': {en: 'file changes'},
+  '图谱实体': {en: 'entities'},
+  '反馈事件': {en: 'feedback events'},
+  '索引': {en: 'index'},
+  '操作': {en: 'Actions'},
+  '份': {en: 'files'},
+  '表': {en: 'table'},
+  '次': {en: 'runs'},
+  '每 {0}': {en: 'every {0}'},
+};
+function T(key, ...args){
+  if (key == null) return key;
+  if (typeof key !== 'string'){
+    // 显式双语对象 {zh, en}
+    if (key.en == null && key.zh == null) return '';
+    const zh = key.zh != null ? key.zh : '';
+    const en = key.en != null ? key.en : zh;
+    let s = (CUR_LANG === 'en') ? en : zh;
+    return args.length ? s.replace(/\{(\d+)\}/g, (_, i) => args[i] ?? '') : s;
+  }
+  let s = key;
+  const m = I18N[key];
+  if (CUR_LANG === 'en' && m && m.en != null) s = m.en;
+  if (args.length) s = s.replace(/\{(\d+)\}/g, (_, i) => args[i] ?? '');
+  return s;
+}
+// 枚举值 → 界面标签的字典；切换语言时自动取 I18N 里对应的英文，否则原样返回中文。
+// 用法不变：DICT[key] 或 Object.entries(DICT)，无需逐个调用点包 T()。
+function cnDict(zh){
+  return new Proxy(zh, {
+    get(t, k){
+      const z = t[k];
+      if (typeof z !== 'string') return z;
+      return CUR_LANG === 'en' ? (I18N[z] && I18N[z].en != null ? I18N[z].en : z) : z;
+    }
+  });
+}
+function syncLangBtn(){
+  const b = $('#lang-btn');
+  if (b) b.textContent = (CUR_LANG === 'en') ? '中文' : 'EN';
+}
+function applyLang(lang){
+  CUR_LANG = (lang === 'en') ? 'en' : 'zh';
+  try { localStorage.setItem('minime.lang', CUR_LANG); } catch(e){}
+  document.documentElement.setAttribute('lang', CUR_LANG === 'en' ? 'en' : 'zh-CN');
+  syncLangBtn();
+  renderView();
+  translateChrome();
+  loadStats();
+}
+
 // ---------------- 主题：暖色深 / 暖色浅，切换写入 localStorage
 function isLight(){ return document.documentElement.classList.contains('light'); }
 function syncThemeBtn(){
@@ -747,8 +1318,8 @@ function confirmBox({title, text='', ok='确定', danger=false}){
       <div class="modal-t">${esc(title)}</div>
       ${text ? `<div class="modal-b">${text}</div>` : ''}
       <div class="modal-f">
-        <button data-no>取消</button>
-        <button class="${danger?'danger':'primary'}" data-yes>${esc(ok)}</button>
+        <button data-no>${T('取消')}</button>
+        <button class="${danger?'danger':'primary'}" data-yes>${esc(T(ok))}</button>
       </div></div>`;
     document.body.appendChild(wrap);
     const done = v => { wrap.remove(); document.removeEventListener('keydown', key); resolve(v); };
@@ -769,8 +1340,8 @@ function promptBox({title, value='', placeholder='', ok='确定'}){
     wrap.innerHTML = `<div class="modal" role="dialog" aria-modal="true">
       <div class="modal-t">${esc(title)}</div>
       <input type="text" class="modal-input" value="${esc(value)}" placeholder="${esc(placeholder)}">
-      <div class="modal-f"><button data-no>取消</button>
-        <button class="primary" data-yes>${esc(ok)}</button></div></div>`;
+      <div class="modal-f"><button data-no>${T('取消')}</button>
+        <button class="primary" data-yes>${esc(T(ok))}</button></div></div>`;
     document.body.appendChild(wrap);
     const inp = wrap.querySelector('.modal-input');
     const done = v => { wrap.remove(); document.removeEventListener('keydown', key); resolve(v); };
@@ -790,7 +1361,7 @@ async function withBusy(btn, busyText, fn){
   const old = btn.textContent;
   btn.dataset.busy = '1';
   btn.disabled = true;
-  btn.textContent = busyText;
+  btn.textContent = T(busyText);
   try { return await fn(); }
   finally {
     btn.disabled = false;
@@ -800,21 +1371,21 @@ async function withBusy(btn, busyText, fn){
 }
 
 // ---------------- 视图骨架：加载态 / 错误态
-function viewLoading(msg='加载中…'){
+function viewLoading(msg){
   const v = $('#view');
   if (v) v.innerHTML = `<div class="skeleton">
     <div class="sk-bar w40"></div><div class="sk-bar w70"></div>
     <div class="sk-card"></div><div class="sk-card"></div><div class="sk-card"></div>
-    <div class="kv" style="margin-top:10px">${esc(msg)}</div></div>`;
+    <div class="kv" style="margin-top:10px">${esc(msg || T('加载中…'))}</div></div>`;
 }
 function viewError(e, retry){
   const v = $('#view');
   if (!v) return;
   v.innerHTML = `<div class="empty">
-    <div style="color:var(--bad);margin-bottom:6px">加载失败</div>
+    <div style="color:var(--bad);margin-bottom:6px">${T('加载失败')}</div>
     <div class="kv">${esc(e && e.message ? e.message : e)}</div>
     ${retry ? `<div class="acts" style="justify-content:center;margin-top:12px">
-      <button id="view-retry">重试</button></div>` : ''}</div>`;
+      <button id="view-retry">${T('重试')}</button></div>` : ''}</div>`;
   if (retry && $('#view-retry')) $('#view-retry').onclick = () => retry();
 }
 
@@ -864,25 +1435,25 @@ function renderJobBar(){
     const pct = j.total ? Math.round(j.done/j.total*100) : null;
     return `<div class="jobbanner">
       <b>${esc(JOB_CN[j.kind]||j.kind)}</b>
-      <span class="kv">${esc(j.message||'进行中')}</span>
+      <span class="kv">${esc(j.message||T('进行中'))}</span>
       ${pct!=null?`<div class="bar"><i style="width:${pct}%"></i></div><span class="score">${j.done}/${j.total}</span>`:''}
       <span class="kv">${fmtDur(j.elapsed_s)}</span>
-      <button class="sm danger" data-cancel="${esc(j.job_id)}">停止</button>
+      <button class="sm danger" data-cancel="${esc(j.job_id)}">${T('停止')}</button>
     </div>`;
   }).join('');
   el.querySelectorAll('[data-cancel]').forEach(b => b.onclick = async () => {
     // 先改文案再发请求：避免请求期间轮询把按钮重绘回原样
     b.disabled = true;
-    b.textContent = '停止中…';
+    b.textContent = T('停止中…');
     const r = await post('/api/job', {action:'cancel', job_id:b.dataset.cancel});
     if (r.error){ toast(r.error, 'error'); pollJobs(); return; }
-    toast('已请求停止，当前条目完成后退出', 'warn');
+    toast(T('已请求停止，当前条目完成后退出'), 'warn');
     pollJobs();
   });
 }
-const JOB_CN = {llm:'LLM 归纳', collect:'采集', pipeline:'流水线'};
-const JOB_ST_CN = {ok:'完成', running:'进行中', cancelled:'已停止', error:'失败'};
-const COL_ST_CN = {ok:'正常', not_due:'未到时间', unavailable:'不可用', error:'失败'};
+const JOB_CN = cnDict({llm:'LLM 归纳', collect:'采集', pipeline:'流水线'});
+const JOB_ST_CN = cnDict({ok:'完成', running:'进行中', cancelled:'已停止', error:'失败'});
+const COL_ST_CN = cnDict({ok:'正常', not_due:'未到时间', unavailable:'不可用', error:'失败'});
 
 async function pollJobs(){
   try {
@@ -898,8 +1469,8 @@ setInterval(pollJobs, 2500);
 async function startJob(action, extra){
   const r = await post('/api/progress', {action, ...(extra||{})});
   if (r.error) toast(r.error, 'error');
-  else if (r.reused) toast('已有同类任务在执行，当前显示其进度', 'warn');
-  else toast('后台任务已提交，进度显示在顶部', 'ok');
+  else if (r.reused) toast(T('已有同类任务在执行，当前显示其进度'), 'warn');
+  else toast(T('后台任务已提交，进度显示在顶部'), 'ok');
   pollJobs();
   return r;
 }
@@ -945,52 +1516,51 @@ async function loadProgress(silent){
       ${btnId ? `<button class="${done?'sm':'primary sm'}" id="${btnId}" ${done?'':'data-todo="1"'}>${btnText}</button>` : ''}
     </div>`;
 
-  view.innerHTML = `<h2>处理进度 <span class="kv">刷新于 ${fmtT(d.generated_at)}</span>
-    <span class="tabs-hint">按 ① 采集、② 清洗、③ 归纳依次执行；② 完成后即可在「对话」中提问，③ 提升回答质量</span></h2>
+  view.innerHTML = `<h2>${T('处理进度')} <span class="kv">${T('刷新于')} ${fmtT(d.generated_at)}</span>
+    <span class="tabs-hint">${T('按 ① 采集、② 清洗、③ 归纳依次执行；② 完成后即可在「对话」中提问，③ 提升回答质量')}</span></h2>
     <div class="guide">
-      ${stepHTML(step1, '①', '采集', `采集 Trae 会话、记忆与本地目录；共 ${(d.collect||[]).length} 个采集源。`,
-                 'g-collect', step1 ? '再采一次' : '开始采集')}
-      ${stepHTML(step2, '②', '清洗成知识', `拆分为可检索的知识条目并自动打标签；当前 ${d.atoms} 条。`,
-                 'g-normalize', step2 ? '重新清洗' : '开始清洗')}
-      ${stepHTML(step3, '③', 'LLM 归纳', `提炼决策依据与经验教训；待处理 ${d.pending} 轮。`,
-                 'g-llm', d.pending ? `归纳一批（上限 ${d.per_run} 轮；待处理 ${d.pending} 轮）` : '已全部归纳')}
+      ${stepHTML(step1, '①', T('采集'), T('采集 Trae 会话、记忆与本地目录；共 {0} 个采集源。', (d.collect||[]).length),
+                 'g-collect', step1 ? T('再采一次') : T('开始采集'))}
+      ${stepHTML(step2, '②', T('清洗成知识'), T('拆分为可检索的知识条目并自动打标签；当前 {0} 条。', d.atoms),
+                 'g-normalize', step2 ? T('重新清洗') : T('开始清洗'))}
+      ${stepHTML(step3, '③', T('LLM 归纳'), T('提炼决策依据与经验教训；待处理 {0} 轮。', d.pending),
+                 'g-llm', d.pending ? T('归纳一批（上限 {0} 轮；待处理 {1} 轮）', d.per_run, d.pending) : T('已全部归纳'))}
     </div>
     ${step2 ? `<div class="banner">
-      <span class="txt"><b>下一步：在「对话」中提问。</b>
-        回答仅依据知识库并标注来源；点击来源可查看原文。若结果不准确，可回到本页补充归纳。</span>
-      <button class="primary" id="goto-chat">去对话 →</button></div>` : ''}
+      <span class="txt"><b>${T('下一步：在「对话」中提问。')}</b>
+        ${T('回答仅依据知识库并标注来源；点击来源可查看原文。若结果不准确，可回到本页补充归纳。')}</span>
+      <button class="primary" id="goto-chat">${T('去对话 →')}</button></div>` : ''}
     <div class="kpis">
-      ${kpi('LLM 归纳进度', d.percent+'%', d.enabled?`${d.processed} / ${d.candidates} 轮已处理`:'未启用')}
-      ${kpi('待处理', d.pending, d.pending?'有实质改动的轮次':'已全部处理')}
-      ${kpi('归纳出新知识', d.llm_atoms, '模型提炼的决策/偏好/教训')}
-      ${kpi('知识库总量', d.atoms, '含规则抽取与 LLM 归纳')}
+      ${kpi(T('LLM 归纳进度'), d.percent+'%', d.enabled?`${d.processed} / ${d.candidates} ${T('轮已处理')}`:T('未启用'))}
+      ${kpi(T('待处理'), d.pending, d.pending?T('有实质改动的轮次'):T('已全部处理'))}
+      ${kpi(T('归纳出新知识'), d.llm_atoms, T('模型提炼的决策/偏好/教训'))}
+      ${kpi(T('知识库总量'), d.atoms, T('含规则抽取与 LLM 归纳'))}
     </div>
     <div class="card">
-      <h3>LLM 归纳 <span class="kv">${d.enabled?esc(d.model||''):'未启用'} · 每批上限 ${d.per_run} 轮</span></h3>
+      <h3>${T('LLM 归纳')} <span class="kv">${d.enabled?esc(d.model||''):T('未启用')} · ${T('每批上限 {0} 轮', d.per_run)}</span></h3>
       <div class="pbar"><i style="width:${d.percent}%"></i></div>
-      <div class="kv">快照共 ${d.turns} 轮，其中 ${d.candidates} 轮有实质改动（改动 ≥ 5 行或新增 ≥ 2 个文件）。
-        已归纳 ${d.processed} 轮，其中 ${d.processed_with_atoms} 轮产出了新知识。
-        ${d.last_processed_at?`最近一次：${fmtT(d.last_processed_at)}`:''}</div>
+      <div class="kv">${T('快照共 {0} 轮，其中 {1} 轮有实质改动（改动 ≥ 5 行或新增 ≥ 2 个文件）。已归纳 {2} 轮，其中 {3} 轮产出了新知识。{4}',
+        d.turns, d.candidates, d.processed, d.processed_with_atoms, d.last_processed_at?`${T('最近一次：')}${fmtT(d.last_processed_at)}`:'')}</div>
       <div class="acts" style="margin-top:10px">
-        <button class="primary" id="run-llm">立即归纳一批</button>
-        <button id="run-llm-all" ${d.pending?'':'disabled'}>归纳全部${d.pending?`（${d.pending} 轮）`:''}</button>
-        <button id="run-full">更新知识库（采集 → 索引 → 清洗）</button>
-        ${d.enabled?'':'<span class="kv">请在「设置」中启用「LLM 归纳」后再执行</span>'}
+        <button class="primary" id="run-llm">${T('立即归纳一批')}</button>
+        <button id="run-llm-all" ${d.pending?'':'disabled'}>${T('归纳全部')}${d.pending?`(${d.pending} ${T('轮')})`:''}</button>
+        <button id="run-full">${T('更新知识库（采集 → 索引 → 清洗）')}</button>
+        ${d.enabled?'':'<span class="kv">'+T('请在「设置」中启用「LLM 归纳」后再执行')+'</span>'}
       </div>
-      <div class="kv" style="margin-top:6px">归纳全部一次性处理所有待处理轮次，单轮约 40 秒，耗时较长，可在顶栏随时停止。命令行：minime llm --run 20 / minime llm --all</div>
+      <div class="kv" style="margin-top:6px">${T('归纳全部一次性处理所有待处理轮次，单轮约 40 秒，耗时较长，可在顶栏随时停止。命令行：minime llm --run 20 / minime llm --all')}</div>
     </div>
     <div class="grid2">
-      <div class="card"><h3>知识来源分布</h3><div style="margin-top:8px">${srcRows||'<div class="kv">暂无</div>'}</div></div>
-      <div class="card"><h3>知识类型</h3><div class="taglist" style="margin-top:8px">${kindRows||'<div class="kv">暂无</div>'}</div>
-        <h3 style="margin-top:14px">采集源最近一次</h3><div style="margin-top:8px">${collecting}</div></div>
+      <div class="card"><h3>${T('知识来源分布')}</h3><div style="margin-top:8px">${srcRows||`<div class="kv">${T('暂无')}</div>`}</div></div>
+      <div class="card"><h3>${T('知识类型')}</h3><div class="taglist" style="margin-top:8px">${kindRows||`<div class="kv">${T('暂无')}</div>`}</div>
+        <h3 style="margin-top:14px">${T('采集源最近一次')}</h3><div style="margin-top:8px">${collecting}</div></div>
     </div>
-    <div class="card"><h3>后台任务</h3><div style="margin-top:6px">${jobRows}</div></div>`;
+    <div class="card"><h3>${T('后台任务')}</h3><div style="margin-top:6px">${jobRows}</div></div>`;
   view.scrollTop = keepScroll;
   // 提交后台任务：按钮进忙态，提交后立刻刷新一次让横幅出现
   const submit = (sel, action, extra, delay) => {
     const b = $(sel);
     if (!b) return;
-    b.onclick = () => withBusy(b, '已提交…', async () => {
+    b.onclick = () => withBusy(b, T('已提交…'), async () => {
       await startJob(action, extra);
       setTimeout(() => loadProgress(), delay);
     });
@@ -1003,11 +1573,11 @@ async function loadProgress(silent){
   const all = $('#run-llm-all');
   if (all && d.pending) all.onclick = async () => {
     const ok = await confirmBox({
-      title: `归纳全部待处理轮次？`,
-      text: `将一次性处理所有 <b>${d.pending}</b> 个待处理轮次，单轮约 40 秒，耗时较长；可随时在顶栏「停止」。`,
-      ok: '开始归纳'});
+      title: T('归纳全部待处理轮次？'),
+      text: T('将一次性处理所有 {0} 个待处理轮次，单轮约 40 秒，耗时较长；可随时在顶栏「停止」。', d.pending),
+      ok: T('开始归纳')});
     if (!ok) return;
-    withBusy(all, '已提交…', async () => {
+    withBusy(all, T('已提交…'), async () => {
       await startJob('llm', {limit: 0});
       setTimeout(() => loadProgress(), 800);
     });
@@ -1016,19 +1586,19 @@ async function loadProgress(silent){
     state.view = 'chat'; syncURL(); renderView();
   };
 }
-const SOURCE_CN = {local_doc:'本地文档', snapshot_turn:'会话快照', trae_memory:'Trae 记忆',
+const SOURCE_CN = cnDict({local_doc:'本地文档', snapshot_turn:'会话快照', trae_memory:'Trae 记忆',
   llm_enrich:'LLM 归纳', obsidian:'Obsidian', cloud_conversation:'云端会话',
   workspace_index:'工作区索引', file_history:'文件历史',
   workbuddy_session:'WorkBuddy 会话', workbuddy_memory:'WorkBuddy 记忆',
-  qoder_session:'Qoder 会话', doubao_conversation:'豆包会话'};
-const LV_CN = {info:'普通', warn:'警告', error:'错误'};
+  qoder_session:'Qoder 会话', doubao_conversation:'豆包会话'});
+const LV_CN = cnDict({info:'普通', warn:'警告', error:'错误'});
 
 async function loadStats(){
   const s = await get('/api/stats');
   $('#stat').innerHTML =
-    `<span>知识 <b>${s.atoms}</b></span><span>实体 <b>${s.entities}</b></span>` +
-    `<span>轨迹 <b>${s.turns}</b> 轮 / <b>${s.file_changes}</b> 文件</span>` +
-    `<span>归档 <b>${fmtSize(s.raw_bytes)}</b></span>`;
+    `<span>${T('知识')} <b>${s.atoms}</b></span><span>${T('实体')} <b>${s.entities}</b></span>` +
+    `<span>${T('轨迹')} <b>${s.turns}</b> ${T('轮')} / <b>${s.file_changes}</b> ${T('文件')}</span>` +
+    `<span>${T('归档')} <b>${fmtSize(s.raw_bytes)}</b></span>`;
 }
 
 function renderSide(){
@@ -1038,15 +1608,15 @@ function renderSide(){
       || state.view === 'collectors' || state.view === 'packs'
       || state.view === 'logs' || state.view === 'progress' || state.view === 'chat'){
     side.innerHTML = `<div class="side-empty">
-      <div class="side-empty-t">${esc(VIEW_CN[state.view] || '当前视图')}</div>
-      <div class="kv">知识库共 <b id="sideTotal">-</b> 条 · 标签筛选位于「知识浏览」</div>
+      <div class="side-empty-t">${esc(VIEW_CN[state.view] || T('当前视图'))}</div>
+      <div class="kv">${T('知识库共')} <b id="sideTotal">-</b> ${T('条')} · ${T('标签筛选位于「知识浏览」')}</div>
     </div>`;
     get('/api/stats').then(s => { const e = $('#sideTotal'); if(e) e.textContent = s.atoms; });
     return;
   }
   const dims = ['project','tech','scene','topic','activity'];
   const groups = [{
-    key: 'kind', label: '知识类型',
+    key: 'kind', label: T('知识类型'),
     chips: Object.entries(KIND_CN).map(([k, cn]) =>
       `<span class="chip ${state.kind===k?'on':''}" data-kind="${k}">${cn}</span>`).join(''),
   }];
@@ -1062,7 +1632,7 @@ function renderSide(){
     });
   }
   groups.push({
-    key: 'status', label: '状态',
+    key: 'status', label: T('状态'),
     chips: Object.entries(STATE_CN).map(([k, cn]) =>
       `<span class="chip ${(state.status||'active')===k?'on':''}" data-status="${k}">${cn}</span>`).join(''),
   });
@@ -1132,26 +1702,26 @@ async function loadAtoms(append=false){
     state.kind && ['类型', KIND_CN[state.kind] || state.kind, 'kind'],
     state.status && ['状态', STATE_CN[state.status] || state.status, 'status'],
   ].filter(Boolean);
-  const stateNote = state.status ? `<div class="kv" style="margin:-2px 0 10px">当前只显示「${STATE_CN[state.status]||state.status}」知识：${
-    state.status === 'dormant' ? '降权条目仍会在正常命中不足时被召回；点「恢复」可立即回到正常检索。'
-    : state.status === 'archived' ? '归档条目不参与检索；点「恢复」可重新启用。'
-    : '已取代条目保留用于追溯；点「恢复」可重新启用。'}</div>` : '';
-  const head = `<h2>知识浏览 <span class="tabs-hint">「详情」查看全文、来源与评分；「采用 / 引用」提高后续检索权重，「不相关」降低权重，连续多次降权且可恢复</span></h2>
+  const stateNote = state.status ? `<div class="kv" style="margin:-2px 0 10px">${T('当前只显示「{0}」知识：{1}', STATE_CN[state.status]||state.status,
+    state.status === 'dormant' ? T('降权条目仍会在正常命中不足时被召回；点「恢复」可立即回到正常检索。')
+    : state.status === 'archived' ? T('归档条目不参与检索；点「恢复」可重新启用。')
+    : T('已取代条目保留用于追溯；点「恢复」可重新启用。'))}</div>` : '';
+  const head = `<h2>${T('知识浏览')} <span class="tabs-hint">${T('「详情」查看全文、来源与评分；「采用 / 引用」提高后续检索权重，「不相关」降低权重，连续多次降权且可恢复')}</span></h2>
     <div class="search">
-      <input type="search" id="q" placeholder="搜索标题或正文…" value="${esc(state.q)}" autocomplete="off">
-      ${state.q ? '<button class="ghost" id="q-clear" title="清空搜索">清空</button>' : ''}
-      <span class="kv" style="white-space:nowrap;align-self:center">命中 <b>${matched}</b> / 全库 ${d.total_atoms}</span>
+      <input type="search" id="q" placeholder="${T('搜索标题或正文…')}" value="${esc(state.q)}" autocomplete="off">
+      ${state.q ? `<button class="ghost" id="q-clear" title="${T('清空搜索')}">${T('清空')}</button>` : ''}
+      <span class="kv" style="white-space:nowrap;align-self:center">${T('命中')} <b>${matched}</b> / ${T('全库')} ${d.total_atoms}</span>
     </div>
-    ${chips.length ? `<div class="filterbar"><span class="fbar-label">筛选</span>${chips.map(([k, v, key]) =>
-      `<span class="fchip">${esc(k)}：${esc(v)}<button data-unset="${key}" title="移除">×</button></span>`).join('')}
-      <span class="kv">命中 ${matched} 条${matched === 0 ? '（条件过严，可移除一项）' : ''}</span>
-      <button class="sm ghost" id="clear-flt">全部清空</button></div>` : ''}`;
+    ${chips.length ? `<div class="filterbar"><span class="fbar-label">${T('筛选')}</span>${chips.map(([k, v, key]) =>
+      `<span class="fchip">${esc(k)}：${esc(v)}<button data-unset="${key}" title="${T('移除')}">×</button></span>`).join('')}
+      <span class="kv">${T('命中 {0} 条', matched)}${matched === 0 ? `（${T('条件过严，可移除一项')}）` : ''}</span>
+      <button class="sm ghost" id="clear-flt">${T('全部清空')}</button></div>` : ''}`;
   if (!ATOMS.length){
     v.innerHTML = head + stateNote + `<div class="empty">
-      ${state.status ? `该状态下没有知识` : chips.length ? '当前筛选没有命中知识' : '知识库为空'}<br>
-      <small>${state.status ? '切换左侧「状态 → 正常」查看全部知识' : chips.length ? '更换关键词，或移除上面的筛选条件' : '完成采集与清洗后，知识将显示在这里'}</small>
-      ${chips.length ? '<div class="acts" style="justify-content:center;margin-top:12px"><button id="clear-flt2">清空筛选</button></div>'
-                     : '<div class="acts" style="justify-content:center;margin-top:12px"><button class="primary" id="goto-progress">去处理进度</button></div>'}
+      ${state.status ? T('该状态下没有知识') : chips.length ? T('当前筛选没有命中知识') : T('知识库为空')}<br>
+      <small>${state.status ? T('切换左侧「状态 → 正常」查看全部知识') : chips.length ? T('更换关键词，或移除上面的筛选条件') : T('完成采集与清洗后，知识将显示在这里')}</small>
+      ${chips.length ? '<div class="acts" style="justify-content:center;margin-top:12px"><button id="clear-flt2">'+T('清空筛选')+'</button></div>'
+                     : '<div class="acts" style="justify-content:center;margin-top:12px"><button class="primary" id="goto-progress">'+T('去处理进度')+'</button></div>'}
       </div>`;
     bindAtomsHead();
     if ($('#clear-flt2')) $('#clear-flt2').onclick = clearFilters;
@@ -1162,12 +1732,12 @@ async function loadAtoms(append=false){
   }
   const rest = Math.max(0, matched - ATOMS.length);
   v.innerHTML = head + stateNote + `<div class="cards">` + ATOMS.slice(prev).map(a => cardHTML(a)).join('') + `</div>`
-    + (ATOMS_DONE ? `<div class="kv" style="text-align:center;padding:14px">已显示全部 ${ATOMS.length} 条</div>`
+    + (ATOMS_DONE ? `<div class="kv" style="text-align:center;padding:14px">${T('已显示全部 {0} 条', ATOMS.length)}</div>`
                   : `<div class="acts" style="justify-content:center;margin-top:14px">
-                     <button id="more">加载更多（还有 ${rest} 条）</button></div>`);
+                     <button id="more">${T('加载更多（还有 {0} 条）', rest)}</button></div>`);
   bindCards();
   bindAtomsHead();
-  if ($('#more')) $('#more').onclick = e => withBusy(e.target, '加载中…', async () => {
+  if ($('#more')) $('#more').onclick = e => withBusy(e.target, T('加载中…'), async () => {
     state.limit += 40;
     history.replaceState({limit: state.limit}, '', location.href);
     await loadAtoms(true);
@@ -1254,18 +1824,18 @@ function cardHTML(a){
     ${src ? `<div class="src" title="${esc(src)}">${esc(src)}</div>` : ''}
     ${fbCount ? `<div class="kv" style="margin-top:4px">反馈：${fbCount}</div>` : ''}
     <div class="acts">
-      <button class="sm ghost" data-act="detail">详情</button>
-      ${(a.state === 'dormant' || a.state === 'archived') ? '<button class="sm ok" data-act="restore">恢复</button>' : ''}
+      <button class="sm ghost" data-act="detail">${T('详情')}</button>
+      ${(a.state === 'dormant' || a.state === 'archived') ? `<button class="sm ok" data-act="restore">${T('恢复')}</button>` : ''}
       <span style="flex:1"></span>
-      <button class="sm ok ${fb.last === 'accepted' ? 'done' : ''}" data-ev="accepted">采用</button>
-      <button class="sm ${fb.last === 'cited' ? 'done' : ''}" data-ev="cited">引用</button>
-      <button class="sm no ${fb.last === 'rejected' ? 'done' : ''}" data-ev="rejected">不相关</button>
+      <button class="sm ok ${fb.last === 'accepted' ? 'done' : ''}" data-ev="accepted">${T('采用')}</button>
+      <button class="sm ${fb.last === 'cited' ? 'done' : ''}" data-ev="cited">${T('引用')}</button>
+      <button class="sm no ${fb.last === 'rejected' ? 'done' : ''}" data-ev="rejected">${T('不相关')}</button>
     </div>
   </div>`;
 }
-const SENS_CN = {public:'公开', internal:'内部', private:'私密'};
-const SCORE_CN = {fts:'关键词/语义', importance:'重要性', confidence:'置信度',
-  recency:'新鲜度', feedback:'反馈', trust:'可信度', vec_sim:'语义相似度'};
+const SENS_CN = cnDict({public:'公开', internal:'内部', private:'私密'});
+const SCORE_CN = cnDict({fts:'关键词/语义', importance:'重要性', confidence:'置信度',
+  recency:'新鲜度', feedback:'反馈', trust:'可信度', vec_sim:'语义相似度'});
 
 function fbSummary(fb){
   if (!fb) return '暂无';
@@ -1308,13 +1878,13 @@ function bindCards(){
           c.outerHTML = cardHTML(a);
           bindCards();
         }
-        if (r.restored) toast('该条已从「已降权」恢复，重新参与检索', 'ok');
-        else if (r.demoted) toast('连续多次「不相关」，该条进入「已降权」；正常命中不足时仍会召回，可在「状态 → 已降权」恢复', 'warn');
+        if (r.restored) toast(T('该条已从「已降权」恢复，重新参与检索'), 'ok');
+        else if (r.demoted) toast(T('连续多次「不相关」，该条进入「已降权」；正常命中不足时仍会召回，可在「状态 → 已降权」恢复'), 'warn');
         else if (ev === 'rejected'){
           const left = Math.max(0, (r.threshold || 2) - (r.reject_streak || 1));
-          toast(left ? `已记录「不相关」（${r.reject_streak}/${r.threshold}）；再标记 ${left} 次将降权` : '已记录「不相关」', 'warn');
+          toast(left ? T('已记录「不相关」（{0}/{1}）；再标记 {2} 次将降权', r.reject_streak, r.threshold, left) : T('已记录「不相关」'), 'warn');
         } else {
-          toast(ev === 'accepted' ? '已采用：后续检索会提高该条权重' : '已引用：后续检索会提高该条权重', 'ok');
+          toast(ev === 'accepted' ? T('已采用：后续检索会提高该条权重') : T('已引用：后续检索会提高该条权重'), 'ok');
         }
       });
     });
@@ -1328,27 +1898,27 @@ function openDetail(id){
   const bd = a.breakdown || {};
   const d = document.createElement('div');
   d.className = 'drawer';
-  d.innerHTML = `<button class="close" title="关闭（Esc）">✕</button>
+  d.innerHTML = `<button class="close" title="${T('关闭（Esc）')}">✕</button>
     <h3>${esc(a.title)}</h3>
     <div class="meta">
       <span class="tag k-${a.kind}">${KIND_CN[a.kind]||a.kind}</span>
       <span>${esc(scopeLabel(a.scope))}</span>
       ${a.sensitivity ? `<span class="sens sens-${a.sensitivity}">${SENS_CN[a.sensitivity]||a.sensitivity}</span>` : ''}
-      <span>置信 ${(+a.confidence||0).toFixed(2)}</span><span>可靠 ${(+a.veracity||0).toFixed(2)}</span>
-      <span class="score">评分 ${(+a.score||0).toFixed(2)}</span>
+      <span>${T('置信')} ${(+a.confidence||0).toFixed(2)}</span><span>${T('可靠')} ${(+a.veracity||0).toFixed(2)}</span>
+      <span class="score">${T('评分')} ${(+a.score||0).toFixed(2)}</span>
       ${a.state && a.state !== 'active' ? `<span class="chip" style="cursor:default">${STATE_CN[a.state]||a.state}</span>` : ''}
     </div>
-    <div class="kvrow"><span>正文</span><pre>${esc(a.body)}</pre></div>
-    <div class="kvrow"><span>标签</span><div class="taglist">${(a.facets||[]).map(f=>`<span class="chip" style="cursor:default">${esc(f.value)}</span>`).join('')||'—'}</div></div>
-    <div class="kvrow"><span>来源</span><div>${(a.sources||[]).map(s=>`<div class="kv">${esc(SOURCE_CN[s.source_kind]||s.source_kind)} · ${esc(s.source_ref)}</div>`).join('')||'—'}</div></div>
-    <div class="kvrow"><span>评分拆解</span><div class="kv">${Object.entries(bd).map(([k,v])=>`${SCORE_CN[k]||k} ${(+v).toFixed(3)}`).join(' · ')||'—'}</div></div>
-    <div class="kvrow"><span>使用反馈</span><div class="kv">${fbSummary(a.feedback)}</div></div>
-    <div class="kvrow"><span>有效期</span><div class="kv">${a.valid_from?fmtT(a.valid_from):'—'} → ${a.valid_until?fmtT(a.valid_until):'长期'}</div></div>
+    <div class="kvrow"><span>${T('正文')}</span><pre>${esc(a.body)}</pre></div>
+    <div class="kvrow"><span>${T('标签')}</span><div class="taglist">${(a.facets||[]).map(f=>`<span class="chip" style="cursor:default">${esc(f.value)}</span>`).join('')||'—'}</div></div>
+    <div class="kvrow"><span>${T('来源')}</span><div>${(a.sources||[]).map(s=>`<div class="kv">${esc(SOURCE_CN[s.source_kind]||s.source_kind)} · ${esc(s.source_ref)}</div>`).join('')||'—'}</div></div>
+    <div class="kvrow"><span>${T('评分拆解')}</span><div class="kv">${Object.entries(bd).map(([k,v])=>`${SCORE_CN[k]||k} ${(+v).toFixed(3)}`).join(' · ')||'—'}</div></div>
+    <div class="kvrow"><span>${T('使用反馈')}</span><div class="kv">${fbSummary(a.feedback)}</div></div>
+    <div class="kvrow"><span>${T('有效期')}</span><div class="kv">${a.valid_from?fmtT(a.valid_from):'—'} → ${a.valid_until?fmtT(a.valid_until):T('长期')}</div></div>
     <div class="acts" style="margin-top:14px">
-      <button class="sm ok" data-ev="accepted">采用</button>
-      <button class="sm" data-ev="cited">引用</button>
-      <button class="sm no" data-ev="rejected">不相关</button>
-      ${(a.state === 'dormant' || a.state === 'archived') ? '<button class="sm ok" data-act="restore">恢复</button>' : ''}
+      <button class="sm ok" data-ev="accepted">${T('采用')}</button>
+      <button class="sm" data-ev="cited">${T('引用')}</button>
+      <button class="sm no" data-ev="rejected">${T('不相关')}</button>
+      ${(a.state === 'dormant' || a.state === 'archived') ? `<button class="sm ok" data-act="restore">${T('恢复')}</button>` : ''}
     </div>`;
   openDrawer(d);
   d.querySelector('.close').onclick = () => closeDrawers();
@@ -1373,13 +1943,13 @@ function openDetail(id){
         if (r.demoted) a2.state = 'dormant';
         if (r.restored) a2.state = 'active';
       }
-      if (r.restored) toast('该条已从「已降权」恢复，重新参与检索', 'ok');
-      else if (r.demoted) toast('连续多次「不相关」，该条进入「已降权」；正常命中不足时仍会召回，可在「状态 → 已降权」恢复', 'warn');
+      if (r.restored) toast(T('该条已从「已降权」恢复，重新参与检索'), 'ok');
+      else if (r.demoted) toast(T('连续多次「不相关」，该条进入「已降权」；正常命中不足时仍会召回，可在「状态 → 已降权」恢复'), 'warn');
       else if (ev === 'rejected'){
         const left = Math.max(0, (r.threshold || 2) - (r.reject_streak || 1));
-        toast(left ? `已记录「不相关」（${r.reject_streak}/${r.threshold}）；再标记 ${left} 次将降权` : '已记录「不相关」', 'warn');
+        toast(left ? T('已记录「不相关」（{0}/{1}）；再标记 {2} 次将降权', r.reject_streak, r.threshold, left) : T('已记录「不相关」'), 'warn');
       } else {
-        toast(ev === 'accepted' ? '已采用：后续检索会提高该条权重' : '已引用：后续检索会提高该条权重', 'ok');
+        toast(ev === 'accepted' ? T('已采用：后续检索会提高该条权重') : T('已引用：后续检索会提高该条权重'), 'ok');
       }
       closeDrawers();
       openDetail(id);
@@ -1395,18 +1965,18 @@ function typingInView(){
 }
 
 // ---------------- graph
-const GTYPE_CN = {project:'项目', tech:'技术', concept:'概念', person:'人物',
-  tool:'工具', file:'文件', org:'组织'};
+const GTYPE_CN = cnDict({project:'项目', tech:'技术', concept:'概念', person:'人物',
+  tool:'工具', file:'文件', org:'组织'});
 
 async function loadGraph(focusId){
   const v = $('#view');
   v.innerHTML = `<div class="graph-wrap"><canvas id="graph"></canvas>
     <aside class="gp" id="gpanel" hidden></aside>
     <div class="legend">
-      <div><span class="dot" style="background:#D99A5B"></span>项目</div>
-      <div><span class="dot" style="background:#8FBF7A"></span>技术</div>
-      <div><span class="dot" style="background:#B98FA8"></span>概念</div>
-      <div style="margin-top:4px;color:var(--fg-4)">点击节点查看详情 · 拖拽平移 · 滚轮缩放</div>
+      <div><span class="dot" style="background:#D99A5B"></span>${T('项目')}</div>
+      <div><span class="dot" style="background:#8FBF7A"></span>${T('技术')}</div>
+      <div><span class="dot" style="background:#B98FA8"></span>${T('概念')}</div>
+      <div style="margin-top:4px;color:var(--fg-4)">${T('点击节点查看详情 · 拖拽平移 · 滚轮缩放')}</div>
     </div></div>`;
   // 带 around 时把目标节点的邻居一起拉进来，保证从详情里跳过去一定能定位到
   const g = await get('/api/graph?limit=90' + (focusId ? '&around=' + encodeURIComponent(focusId) : ''));
@@ -1551,23 +2121,23 @@ function drawGraph(g, focusId){
     const facet = (d.facet && d.facet.dim) ? `${d.facet.dim}:${d.facet.value}` : '';
     panel.innerHTML = `
       <div class="gp-head"><span class="gp-type">${GTYPE_CN[n.type]||n.type}</span>
-        <button class="gp-close" title="关闭（Esc）">✕</button></div>
+        <button class="gp-close" title="${T('关闭（Esc）')}">✕</button></div>
       <h3>${esc(n.name)}</h3>
-      <div class="kv">关联知识 <b>${n.atoms}</b> 条 · 关系 <b>${n.degree}</b> 条</div>
-      <div class="gp-sec">关系</div>
+      <div class="kv">${T('关联知识 {0} 条 · 关系 {1} 条', n.atoms, n.degree)}</div>
+      <div class="gp-sec">${T('关系')}</div>
       ${rels.length ? rels.map(r => `<button class="gp-rel" data-node="${esc(r.node_id)}"
-          title="定位到「${esc(r.name)}」">
+          title="${T('定位到「{0}」', r.name)}">
           <span class="dot" style="background:${COLOR[r.type]||FALLBACK}"></span>
           <span class="rel">${r.dir === 'out' ? esc(r.rel_cn)+' →' : '← '+esc(r.rel_cn)}</span>
           <span class="nm">${esc(r.name)}</span>
           ${r.weight > 1 ? `<span class="wt">${Math.round(r.weight)}</span>` : ''}
-        </button>`).join('') : `<div class="kv">暂无关联节点</div>`}
-      <div class="gp-sec">相关知识</div>
+        </button>`).join('') : `<div class="kv">${T('暂无关联节点')}</div>`}
+      <div class="gp-sec">${T('相关知识')}</div>
       ${atoms.length ? atoms.map(a => `<div class="gp-atom">
           <span class="tag k-${a.kind}">${KIND_CN[a.kind]||a.kind}</span>
           <span>${esc(a.title)}</span></div>`).join('')
-        : `<div class="kv">这个节点下还没有知识</div>`}
-      ${n.atoms ? `<button class="gp-more">在知识浏览中查看全部 ${n.atoms} 条</button>` : ''}`;
+        : `<div class="kv">${T('这个节点下还没有知识')}</div>`}
+      ${n.atoms ? `<button class="gp-more">${T('在知识浏览中查看全部 {0} 条', n.atoms)}</button>` : ''}`;
     bindClose();
     panel.querySelectorAll('.gp-rel').forEach(b => b.onclick = () => {
       const next = nodes.find(x => x.entity_id === b.dataset.node);
@@ -1592,14 +2162,14 @@ function drawGraph(g, focusId){
     const seq = ++panelSeq;
     panel.hidden = false;
     panel.innerHTML = `<div class="gp-head"><span class="gp-type">${GTYPE_CN[n.type]||n.type}</span>
-      <button class="gp-close" title="关闭（Esc）">✕</button></div>
-      <h3>${esc(n.name)}</h3><div class="kv">正在加载关联信息…</div>`;
+      <button class="gp-close" title="${T('关闭（Esc）')}">✕</button></div>
+      <h3>${esc(n.name)}</h3><div class="kv">${T('正在加载关联信息…')}</div>`;
     bindClose();
     const d = await get('/api/graph?node=' + encodeURIComponent(n.entity_id));
     if (seq !== panelSeq) return;
     if (d.error){
       panel.innerHTML = `<div class="gp-head"><span class="gp-type">${GTYPE_CN[n.type]||n.type}</span>
-        <button class="gp-close" title="关闭（Esc）">✕</button></div>
+        <button class="gp-close" title="${T('关闭（Esc）')}">✕</button></div>
         <h3>${esc(n.name)}</h3><div class="kv">${esc(d.error)}</div>`;
       bindClose(); return;
     }
@@ -1657,28 +2227,28 @@ async function loadProfile(){
   const p = await get('/api/profile');
   const f = $('#view');
   const dims = p.dimensions || [];
-  if (!dims.length){ f.innerHTML = `<div class="empty">还没有能力画像<br>
-    <small>先完成采集和清洗，再执行 minime update 生成</small></div>`; return; }
-  f.innerHTML = `<h2>能力画像 <span class="tabs-hint">从知识库统计出的 8 个维度，证据数是支撑该评分的知识条数</span><br><span class="kv">生成于 ${new Date(p.generated_at*1000).toLocaleString('zh-CN')}</span></h2>
+  if (!dims.length){ f.innerHTML = `<div class="empty">${T('还没有能力画像')}<br>
+    <small>${T('先完成采集和清洗，再执行 minime update 生成')}</small></div>`; return; }
+  f.innerHTML = `<h2>${T('能力画像')} <span class="tabs-hint">${T('从知识库统计出的 8 个维度，证据数是支撑该评分的知识条数')}</span><br><span class="kv">${T('生成于')} ${new Date(p.generated_at*1000).toLocaleString(CUR_LANG==='en'?'en-US':'zh-CN')}</span></h2>
     <div class="grid2">
       <div>${dims.map(d => `
         <div style="margin-bottom:14px">
           <div style="display:flex;justify-content:space-between">
             <span>${dimName(d.dimension)}</span>
-            <span class="score">${d.score==null?'—':d.score.toFixed(0)} <small style="color:var(--fg-4)">/ 证据 ${d.evidence}</small></span>
+            <span class="score">${d.score==null?'—':d.score.toFixed(0)} <small style="color:var(--fg-4)">/ ${T('证据')} ${d.evidence}</small></span>
           </div>
           <div class="bar"><i style="width:${d.score||0}%"></i></div>
           <div class="kv" style="margin-top:3px">${esc(d.detail)}</div>
         </div>`).join('')}</div>
       <div>
-        <h2 style="font-size:13px">项目分布</h2>
+        <h2 style="font-size:13px">${T('项目分布')}</h2>
         ${Object.entries(p.projects||{}).slice(0,14).map(([k,v]) => {
           const mx = Math.max(...Object.values(p.projects));
           return `<div class="proj-row"><span title="${esc(k)}">${esc(k)}</span>
             <div class="bar" style="margin:0"><i style="width:${v/mx*100}%"></i></div>
             <span class="score">${v}</span></div>`;
         }).join('')}
-        <h2 style="font-size:13px;margin-top:22px">技术栈</h2>
+        <h2 style="font-size:13px;margin-top:22px">${T('技术栈')}</h2>
         ${Object.entries(p.techs||{}).slice(0,14).map(([k,v]) =>
           `<div class="proj-row"><span>${esc(k)}</span>
             <div class="bar" style="margin:0"><i style="width:${v/Math.max(...Object.values(p.techs))*100}%;background:var(--acc)"></i></div>
@@ -1687,9 +2257,10 @@ async function loadProfile(){
     </div>`;
 }
 function dimName(d){
-  return {tech_breadth:'技术广度',project_span:'项目跨度',delivery_volume:'交付体量',
+  const m = {tech_breadth:'技术广度',project_span:'项目跨度',delivery_volume:'交付体量',
     architecture_depth:'架构沉淀',debugging:'排障能力',domain_focus:'领域聚焦',
-    independence:'独立性（用户主导度）',knowledge_asset:'知识资产'}[d] || d;
+    independence:'独立性（用户主导度）',knowledge_asset:'知识资产'}[d];
+  return m != null ? T(m) : d;
 }
 
 // ---------------- workspaces
@@ -1697,12 +2268,11 @@ async function loadWorkspaces(){
   const d = await get('/api/workspaces');
   const rows = d.workspaces || [];
   const mx = Math.max(1, ...rows.map(r => r.indexed_sessions));
-  $('#view').innerHTML = `<h2>工作区 <span class="tabs-hint">仅显示已采集的工作区；未出现表示尚未采集</span><br><span class="kv">共 ${rows.length} 个工作区 ·
-    索引会话 ${d.total_sessions} · 有逐轮快照 ${d.sessions_with_snapshot}</span></h2>
+  $('#view').innerHTML = `<h2>${T('工作区')} <span class="tabs-hint">${T('仅显示已采集的工作区；未出现表示尚未采集')}</span><br><span class="kv">${T('共 {0} 个工作区 · 索引会话 {1} · 有逐轮快照 {2}', rows.length, d.total_sessions, d.sessions_with_snapshot)}</span></h2>
     <table style="width:100%;border-collapse:collapse;font-size:12px">
       <thead><tr style="color:var(--fg-3);text-align:left;border-bottom:1px solid var(--line)">
-        <th style="padding:6px 4px">工作区</th><th>路径</th><th style="width:140px">会话数</th>
-        <th>有快照</th><th>文件历史</th><th>最近活动</th></tr></thead>
+        <th style="padding:6px 4px">${T('工作区')}</th><th>${T('路径')}</th><th style="width:140px">${T('会话数')}</th>
+        <th>${T('有快照')}</th><th>${T('文件历史')}</th><th>${T('最近活动')}</th></tr></thead>
       <tbody>${rows.map(r => `<tr style="border-bottom:1px solid var(--line)">
         <td style="padding:5px 4px"><b>${esc(r.name)}</b></td>
         <td style="color:var(--fg-4);font-size:11px">${esc(r.path||'')}</td>
@@ -1711,7 +2281,7 @@ async function loadWorkspaces(){
           <span class="score">${r.indexed_sessions}</span></div></td>
         <td class="score">${r.with_snapshot||0}</td>
         <td class="score">${r.files||0}</td>
-        <td style="color:var(--fg-4)">${r.last_ts ? new Date(r.last_ts*1000).toLocaleDateString('zh-CN') : '—'}</td>
+        <td style="color:var(--fg-4)">${r.last_ts ? new Date(r.last_ts*1000).toLocaleDateString(CUR_LANG==='en'?'en-US':'zh-CN') : '—'}</td>
       </tr>`).join('')}</tbody></table>`;
 }
 
@@ -1746,8 +2316,8 @@ async function loadSettings(){
     const overridden = !f.sensitive && savedRaw != null
       && JSON.stringify(savedRaw) !== JSON.stringify(current[f.key] ?? null);
     const tag = overridden
-      ? ` <span class="pill warn" title="环境变量优先级高于面板保存值">环境变量覆盖</span>` : '';
-    const hint = [f.hint, f.env ? `环境变量 <code>${esc(f.env)}</code>` : '']
+      ? ` <span class="pill warn" title="${T('环境变量优先级高于面板保存值')}">${T('环境变量覆盖')}</span>` : '';
+    const hint = [f.hint, f.env ? `${T('环境变量')} <code>${esc(f.env)}</code>` : '']
       .filter(Boolean).join(' · ');
     const hintHtml = hint ? `<div class="cfg-hint">${hint}</div>` : '';
     const label = `<label class="cfg-label" for="cfg-${f.key}">${esc(f.label)}${tag}</label>`;
@@ -1756,10 +2326,10 @@ async function loadSettings(){
         <div class="cfg-ctl"><input type="checkbox" id="cfg-${f.key}"
           data-key="${f.key}" ${current[f.key]?'checked':''}></div>${hintHtml}</div>`;
     }
-    const ph = `跟随默认${v?`（当前 ${esc(v).slice(0,40)}）`:''}`;
+    const ph = `${T('跟随默认')}${v?`（${T('当前')} ${esc(v).slice(0,40)}）`:''}`;
     if (f.options){
       const opts = ['', ...f.options].map(o => {
-        const txt = o ? esc((f.option_labels||{})[o] || o) : '跟随默认';
+        const txt = o ? esc((f.option_labels||{})[o] || o) : T('跟随默认');
         return `<option value="${esc(o)}" ${fmt(current[f.key])===o?'selected':''}>${txt}</option>`;
       }).join('');
       return `<div class="cfg-field">${label}
@@ -1772,12 +2342,12 @@ async function loadSettings(){
       : `<input id="cfg-${f.key}" data-key="${f.key}"
           type="${(f.type==='int'||f.type==='float') ? 'number' : 'text'}"
           value="${f.sensitive?'':esc(v)}"
-          placeholder="${f.sensitive && v ? '已设置（留空将清除）' : esc(ph)}">`;
+          placeholder="${f.sensitive && v ? T('已设置（留空将清除）') : esc(ph)}">`;
     return `<div class="cfg-field${wide}">${label}
       <div class="cfg-ctl">${input}</div>${hintHtml}</div>`;
   };
   const groupHtml = [...groups].map(([g, fields]) => `
-    <div class="cfg-group"><h3>${esc(g)}<span class="kv">${fields.length} 项</span></h3>
+    <div class="cfg-group"><h3>${esc(g)}<span class="kv">${fields.length} ${T('项')}</span></h3>
       <div class="cfg-fields">${fields.map(ctl).join('')}</div></div>`).join('');
 
   const curPort = Number(current['web.port'] || 8765);
@@ -1785,31 +2355,31 @@ async function loadSettings(){
   const stale = (health.code_stale || []).filter(p => p !== 'web/index.html');
   const notes = [];
   if (curPort !== runPort)
-    notes.push(`<span style="color:var(--warn)">端口已改为 ${curPort}，重启后生效</span>`);
+    notes.push(`<span style="color:var(--warn)">${T('端口已改为 {0}，重启后生效', curPort)}</span>`);
   if (stale.length)
-    notes.push(`<span style="color:var(--warn)">服务端代码有更新，重启后生效</span>`);
+    notes.push(`<span style="color:var(--warn)">${T('服务端代码有更新，重启后生效')}</span>`);
 
-  $('#view').innerHTML = `<h2>设置 <span class="tabs-hint">配置保存即写入 config.json；端口改动与面板代码更新需重启</span></h2>
+  $('#view').innerHTML = `<h2>${T('设置')} <span class="tabs-hint">${T('配置保存即写入 config.json；端口改动与面板代码更新需重启')}</span></h2>
     <div class="cfg-bar">
-      <span id="cfg-out" class="kv">共 ${schema.length} 项配置 · 当前端口 ${runPort}</span>
+      <span id="cfg-out" class="kv">${T('共 {0} 项配置 · 当前端口 {1}', schema.length, runPort)}</span>
       <span class="spacer"></span>
       ${notes.join('')}
-      <button id="cfg-reset" class="ghost">撤销修改</button>
-      <button class="primary" id="cfg-save">保存全部</button>
-      <button id="cfg-restart" title="重启面板进程，使端口等改动生效">重启面板</button>
+      <button id="cfg-reset" class="ghost">${T('撤销修改')}</button>
+      <button class="primary" id="cfg-save">${T('保存全部')}</button>
+      <button id="cfg-restart" title="${T('重启面板进程，使端口等改动生效')}">${T('重启面板')}</button>
     </div>
     ${groupHtml}
-    <div class="cfg-group"><h3>同步与连通测试</h3>
-      <div class="kv" style="margin-bottom:10px">把高可信度的决策/偏好/教训单向同步到 mnemosyne。</div>
-      <div class="acts"><button id="sync-preview">预览候选</button><button class="primary" id="sync-run">立即同步</button>
-        <button id="llm-test">测试模型连通</button></div>
+    <div class="cfg-group"><h3>${T('同步与连通测试')}</h3>
+      <div class="kv" style="margin-bottom:10px">${T('把高可信度的决策/偏好/教训单向同步到 mnemosyne。')}</div>
+      <div class="acts"><button id="sync-preview">${T('预览候选')}</button><button class="primary" id="sync-run">${T('立即同步')}</button>
+        <button id="llm-test">${T('测试模型连通')}</button></div>
       <div id="sync-out" class="kv" style="margin-top:8px"></div>
     </div>`;
 
   // 有未保存改动时给出提示，避免直接关页面丢配置
   const markDirty = () => {
     const out = $('#cfg-out');
-    if (out) out.innerHTML = '<span style="color:var(--warn)">有未保存的修改</span>';
+    if (out) out.innerHTML = `<span style="color:var(--warn)">${T('有未保存的修改')}</span>`;
   };
   $$('#view .cfg-fields input, #view .cfg-fields textarea, #view .cfg-fields select').forEach(
     el => { el.addEventListener('input', markDirty); el.addEventListener('change', markDirty); });
@@ -1825,16 +2395,16 @@ async function loadSettings(){
       const errs = Object.entries(r.errors||{});
       if (errs.length){
         $('#cfg-out').innerHTML = `<span style="color:var(--bad)">${errs.map(([,m])=>esc(m)).join('；')}</span>`;
-        toast('部分配置未通过校验，请查看提示', 'error');
+        toast(T('部分配置未通过校验，请查看提示'), 'error');
         return;
       }
       const n = Object.keys(r.applied||{}).length;
-      toast(`已保存 ${n} 项`, 'ok');
+      toast(T('已保存 {0} 项', n), 'ok');
       const curPort = Number((r.applied||{})['web.port'] || 0);
       if (curPort && curPort !== Number(health.port)){
-        $('#cfg-out').innerHTML = `<span style="color:var(--warn)">已保存 ${n} 项 · 端口改为 ${curPort}，重启后生效</span>`;
+        $('#cfg-out').innerHTML = `<span style="color:var(--warn)">${T('已保存 {0} 项 · 端口改为 {1}，重启后生效', n, curPort)}</span>`;
       } else {
-        $('#cfg-out').innerHTML = `<span style="color:var(--ok)">已保存 ${n} 项</span>`;
+        $('#cfg-out').innerHTML = `<span style="color:var(--ok)">${T('已保存 {0} 项', n)}</span>`;
         setTimeout(loadSettings, 600);
       }
     });
@@ -1843,19 +2413,19 @@ async function loadSettings(){
   $('#cfg-restart').onclick = async e => {
     const dirty = ($('#cfg-out')?.textContent || '').includes('未保存');
     const ok = await confirmBox({
-      title: '重启面板？',
-      text: '面板进程就地重启，端口等设置立即生效；正在采集/归纳的后台任务会被中断。'
-        + (dirty ? ' 当前还有未保存的修改，重启将丢弃。' : ''),
-      ok: '重启'});
+      title: T('重启面板？'),
+      text: T('面板进程就地重启，端口等设置立即生效；正在采集/归纳的后台任务会被中断。')
+        + (dirty ? ' ' + T('当前还有未保存的修改，重启将丢弃。') : ''),
+      ok: T('重启')});
     if (!ok) return;
     await withBusy(e.target, '重启中…', async () => {
       const r = await post('/api/restart', {});
       if (r.error) return toast(r.error, 'error');
       const port = r.port || runPort;
       const base = `${location.protocol}//${location.hostname}:${port}`;
-      toast('面板重启中，稍后自动刷新', 'warn');
+      toast(T('面板重启中，稍后自动刷新'), 'warn');
       if (!await waitWebUp(base, 20000)){
-        toast('重启后未能连接，请手动执行 minime web', 'error');
+        toast(T('重启后未能连接，请手动执行 minime web'), 'error');
         return;
       }
       if (String(port) !== location.port) location.href = `${base}/?view=settings`;
@@ -1866,27 +2436,27 @@ async function loadSettings(){
   $('#llm-test').onclick = e => withBusy(e.target, '探测中…', async () => {
     const r = await get('/api/llm/health');
     $('#sync-out').innerHTML = r.ok
-      ? `<span style="color:var(--ok)">连接正常</span> · 当前模型 <b>${esc(r.using)}</b> · 可用 ${(r.models||[]).length} 个`
-      : `<span style="color:var(--bad)">连接失败</span> · ${esc(r.error)}`;
-    toast(r.ok ? '模型连接正常' : '模型连接失败', r.ok ? 'ok' : 'error');
+      ? `<span style="color:var(--ok)">${T('连接正常')}</span> · ${T('当前模型 {0} · 可用 {1} 个', esc(r.using), (r.models||[]).length)}`
+      : `<span style="color:var(--bad)">${T('连接失败')}</span> · ${esc(r.error)}`;
+    toast(r.ok ? T('模型连接正常') : T('模型连接失败'), r.ok ? 'ok' : 'error');
   });
   const showSync = (r, prefix) => {
     if (!r.preview) {
-      $('#sync-out').innerHTML = `${prefix} · 已同步 <b>${r.synced??0}</b> · 失败 <b>${r.failed??0}</b>`
+      $('#sync-out').innerHTML = `${prefix} · ${T('已同步 {0} 条', r.synced??0)} · ${T('失败')} <b>${r.failed??0}</b>`
         + (r.skipped ? ` · ${esc(r.skipped)}` : '') + (r.error ? ` · ${esc(r.error)}` : '');
       return;
     }
-    const rows = (r.preview||[]).map(c => `<div class="kv">· [${esc(KIND_CN[c.kind]||c.kind)}] ${esc(c.title)} <span class="kv">(可信层级 ${c.trust_tier} · 可靠度 ${c.veracity})</span></div>`).join('');
-    $('#sync-out').innerHTML = `已同步 <b>${r.synced}</b> 条 · mnemosyne CLI ${r.cli?'可用':'缺失'}<br>`
-      + (rows || '<div class="kv">暂无待同步候选</div>');
+    const rows = (r.preview||[]).map(c => `<div class="kv">· [${esc(KIND_CN[c.kind]||c.kind)}] ${esc(c.title)} <span class="kv">(${T('可信层级')} ${c.trust_tier} · ${T('可靠度')} ${c.veracity})</span></div>`).join('');
+    $('#sync-out').innerHTML = `${T('已同步 {0} 条', r.synced)} · mnemosyne CLI ${r.cli?T('可用'):T('缺失')}<br>`
+      + (rows || `<div class="kv">${T('暂无待同步候选')}</div>`);
   };
   $('#sync-preview').onclick = async () => {
-    $('#sync-out').textContent = '读取中…';
-    showSync(await get('/api/sync'), '预览');
+    $('#sync-out').textContent = T('读取中…');
+    showSync(await get('/api/sync'), T('预览'));
   };
   $('#sync-run').onclick = async () => {
-    $('#sync-out').textContent = '同步中…';
-    showSync(await post('/api/sync', {dry_run:false}), '完成');
+    $('#sync-out').textContent = T('同步中…');
+    showSync(await post('/api/sync', {dry_run:false}), T('完成'));
   };
 }
 
@@ -1904,9 +2474,9 @@ async function loadPacks(){
 
   const auditRows = findings.length ? findings.map(f => `<div class="srcrow" style="grid-template-columns:130px 1fr">
       <span>${esc(f.label)}</span>
-      <span class="kv">${f.count} 处 · ${esc(f.action)}
+      <span class="kv">${T('{0} 处', f.count)} · ${esc(f.action)}
         <span style="color:var(--fg-4)">${f.examples.slice(0,3).map(esc).join(' , ')}</span></span>
-    </div>`).join('') : `<div class="kv" style="color:var(--ok)">未发现路径、密钥、邮箱、手机号等敏感内容</div>`;
+    </div>`).join('') : `<div class="kv" style="color:var(--ok)">${T('未发现路径、密钥、邮箱、手机号等敏感内容')}</div>`;
 
   const packCards = (pd.packs||[]).map(p => {
     const mine = p.owner === 'self';
@@ -1917,125 +2487,125 @@ async function loadPacks(){
           <span class="pk-slider"></span>
         </label>
         <span class="pk-coll-name">${esc(c.name)}</span>
-        <span class="kv">${c.n_atoms} 条</span>
+        <span class="kv">${c.n_atoms} ${T('条')}</span>
         <span style="flex:1"></span>
-        <button class="sm ghost" data-coll-view="${esc(c.collection_id)}" data-coll-title="${esc(c.name)}">查看内容</button>
+        <button class="sm ghost" data-coll-view="${esc(c.collection_id)}" data-coll-title="${esc(c.name)}">${T('查看内容')}</button>
         ${mine && c.collection_id !== 'C:self:all'
-          ? `<button class="sm ghost" data-coll-drop="${esc(c.collection_id)}" data-coll-title="${esc(c.name)}">移除</button>` : ''}
+          ? `<button class="sm ghost" data-coll-drop="${esc(c.collection_id)}" data-coll-title="${esc(c.name)}">${T('移除')}</button>` : ''}
       </div>`).join('');
     return `<div class="pk-card">
       <div class="pk-head">
         <div>
           <div class="pk-title">${esc(p.name)}
-            <span class="pk-badge ${mine?'mine':'imported'}">${mine?'我的':'他人导入'}</span>
-            ${p.enabled_collections ? `<span class="pk-badge on">开启 ${p.enabled_collections}/${(p.collections||[]).length}</span>` : '<span class="pk-badge off">全部关闭</span>'}
+            <span class="pk-badge ${mine?'mine':'imported'}">${mine?T('我的'):T('他人导入')}</span>
+            ${p.enabled_collections ? `<span class="pk-badge on">${T('开启 {0}/{1}', p.enabled_collections, (p.collections||[]).length)}</span>` : `<span class="pk-badge off">${T('全部关闭')}</span>`}
           </div>
-          <div class="kv">${p.n_atoms} 条知识 · ${(p.collections||[]).length} 套知识集
-            ${p.author?` · 作者 ${esc(p.author)}`:''} · ${fmtT(p.created_at)}
-            ${p.origin?` · 来自 ${esc(p.origin)}`:''}</div>
+          <div class="kv">${p.n_atoms} ${T('条知识')} · ${(p.collections||[]).length} ${T('套知识集')}
+            ${p.author?` · ${T('作者')} ${esc(p.author)}`:''} · ${fmtT(p.created_at)}
+            ${p.origin?` · ${T('来自 {0}', esc(p.origin))}`:''}</div>
         </div>
         <div class="acts">
-          ${mine ? `<button class="sm" data-new-coll="${esc(p.pack_id)}">+ 新建知识集</button>` : ''}
+          ${mine ? `<button class="sm" data-new-coll="${esc(p.pack_id)}">+ ${T('新建知识集')}</button>` : ''}
           ${mine && p.pack_id !== 'P:self'
-            ? `<button class="sm ghost" data-del-pack="${esc(p.pack_id)}" data-name="${esc(p.name)}">删除包</button>` : ''}
+            ? `<button class="sm ghost" data-del-pack="${esc(p.pack_id)}" data-name="${esc(p.name)}">${T('删除包')}</button>` : ''}
         </div>
       </div>
-      <div class="pk-colls">${colls || '<div class="kv">还没有知识集</div>'}</div>
-      ${mine ? '' : `<div class="kv" style="margin-top:6px;color:var(--warn)">他人导入的包只可使用，不可导出、不可编辑</div>`}
+      <div class="pk-colls">${colls || `<div class="kv">${T('还没有知识集')}</div>`}</div>
+      ${mine ? '' : `<div class="kv" style="margin-top:6px;color:var(--warn)">${T('他人导入的包只可使用，不可导出、不可编辑')}</div>`}
     </div>`;
   }).join('');
 
   const fileRows = files.map(f => `<tr>
-    <td><b>${esc(f.name || f.file)}</b><div class="kv">${(f.size_kb).toFixed(0)} KB · ${f.atoms ?? '—'} 条 · ${esc(f.author||'匿名')} · ${fmtT(f.mtime)}</div></td>
+    <td><b>${esc(f.name || f.file)}</b><div class="kv">${(f.size_kb).toFixed(0)} KB · ${f.atoms ?? '—'} ${T('条')} · ${esc(f.author||T('匿名'))} · ${fmtT(f.mtime)}</div></td>
     <td style="white-space:nowrap">
-      <button class="sm ghost" data-inspect="${esc(f.file)}">查看</button>
-      <a href="/api/pack/download?file=${encodeURIComponent(f.file)}"><button class="sm">下载</button></a>
-      <button class="sm" data-import="${esc(f.file)}">重新导入</button>
-      <button class="sm danger" data-delete="${esc(f.file)}">删除文件</button>
+      <button class="sm ghost" data-inspect="${esc(f.file)}">${T('查看')}</button>
+      <a href="/api/pack/download?file=${encodeURIComponent(f.file)}"><button class="sm">${T('下载')}</button></a>
+      <button class="sm" data-import="${esc(f.file)}">${T('重新导入')}</button>
+      <button class="sm danger" data-delete="${esc(f.file)}">${T('删除文件')}</button>
     </td></tr>`).join('');
 
-  $('#view').innerHTML = `<h2>资源包 <span class="tabs-hint">已开启的知识集参与检索与对话；全部关闭时不限制检索范围</span><br>
-    <span class="kv">一个资源包可包含多套知识集；自己的包可导出分享，他人导入的包仅可使用</span></h2>
+  $('#view').innerHTML = `<h2>${T('资源包')} <span class="tabs-hint">${T('已开启的知识集参与检索与对话；全部关闭时不限制检索范围')}</span><br>
+    <span class="kv">${T('一个资源包可包含多套知识集；自己的包可导出分享，他人导入的包仅可使用')}</span></h2>
 
     <div class="card">
-      <h3>我的资源包 <span class="kv">敏感度分布：公开 ${sens.public||0} · 内部 ${sens.internal||0} · 私密 ${sens.private||0}</span></h3>
-      <div class="pk-list">${packCards || '<div class="kv">还没有资源包</div>'}</div>
+      <h3>${T('我的资源包')} <span class="kv">${T('敏感度分布：公开 {0} · 内部 {1} · 私密 {2}', sens.public||0, sens.internal||0, sens.private||0)}</span></h3>
+      <div class="pk-list">${packCards || `<div class="kv">${T('还没有资源包')}</div>`}</div>
       <div class="acts" style="margin-top:12px">
-        <input id="np-name" placeholder="资源包名称，如「架构方法论」" style="width:240px">
-        <input id="np-author" placeholder="作者（可选）" style="width:150px">
-        <button class="sm" id="np-go">+ 新建资源包</button>
+        <input id="np-name" placeholder="${T('资源包名称，如「架构方法论」')}" style="width:240px">
+        <input id="np-author" placeholder="${T('作者（可选）')}" style="width:150px">
+        <button class="sm" id="np-go">+ ${T('新建资源包')}</button>
       </div>
     </div>
 
     <div class="card">
-      <h3>按条件筛出一套知识集 <span class="kv">设置筛选条件，预览命中结果后创建知识集</span></h3>
+      <h3>${T('按条件筛出一套知识集')} <span class="kv">${T('设置筛选条件，预览命中结果后创建知识集')}</span></h3>
       <div class="pk-filter">
-        <div class="cfg-row"><span class="cfg-label">目标包</span>
+        <div class="cfg-row"><span class="cfg-label">${T('目标包')}</span>
           <select id="fl-pack">${(pd.packs||[]).filter(p => p.owner==='self').map(p =>
             `<option value="${esc(p.pack_id)}">${esc(p.name)}</option>`).join('')}</select></div>
-        <div class="cfg-row"><span class="cfg-label">知识集名称</span>
-          <input id="fl-name" placeholder="如「docker 排障经验」"></div>
-        <div class="cfg-row"><span class="cfg-label">关键词</span>
-          <input id="fl-query" placeholder="标题或正文包含的关键词，可留空"></div>
-        <div class="cfg-row"><span class="cfg-label">类型</span>
+        <div class="cfg-row"><span class="cfg-label">${T('知识集名称')}</span>
+          <input id="fl-name" placeholder="${T('如「docker 排障经验」')}"></div>
+        <div class="cfg-row"><span class="cfg-label">${T('关键词')}</span>
+          <input id="fl-query" placeholder="${T('标题或正文包含的关键词，可留空')}"></div>
+        <div class="cfg-row"><span class="cfg-label">${T('类型')}</span>
           <span class="pk-chips">${Object.entries(KIND_CN).map(([k,v]) =>
             `<label class="pk-chip"><input type="checkbox" class="fl-kind" value="${k}">${v}</label>`).join('')}</span></div>
-        <div class="cfg-row"><span class="cfg-label">敏感度</span>
-          <span class="pk-chips">${[['public','公开'],['internal','内部'],['private','私密']].map(([k,v]) =>
+        <div class="cfg-row"><span class="cfg-label">${T('敏感度')}</span>
+          <span class="pk-chips">${[['public',T('公开')],['internal',T('内部')],['private',T('私密')]].map(([k,v]) =>
             `<label class="pk-chip"><input type="checkbox" class="fl-sens" value="${k}">${v}</label>`).join('')}</span></div>
-        <div class="cfg-row"><span class="cfg-label">标签</span>
-          <select id="fl-dim" style="width:110px"><option value="">（不限）</option></select>
-          <select id="fl-value" style="width:200px"><option value="">请先选择维度</option></select></div>
+        <div class="cfg-row"><span class="cfg-label">${T('标签')}</span>
+          <select id="fl-dim" style="width:110px"><option value="">${T('（不限）')}</option></select>
+          <select id="fl-value" style="width:200px"><option value="">${T('请先选择维度')}</option></select></div>
         <div class="acts">
-          <button class="sm" id="fl-preview">预览命中</button>
-          <button class="sm primary" id="fl-create">创建知识集</button>
+          <button class="sm" id="fl-preview">${T('预览命中')}</button>
+          <button class="sm primary" id="fl-create">${T('创建知识集')}</button>
         </div>
       </div>
       <div id="fl-out" class="kv" style="margin-top:10px"></div>
     </div>
 
     <div class="card">
-      <h3>导出 <span class="kv">只导出自己的包；他人导入的包不可导出</span></h3>
-      <div class="cfg-row"><span class="cfg-label">导出哪个包</span>
+      <h3>${T('导出')} <span class="kv">${T('只导出自己的包；他人导入的包不可导出')}</span></h3>
+      <div class="cfg-row"><span class="cfg-label">${T('导出哪个包')}</span>
         <select id="xp-pack">${(pd.packs||[]).filter(p => p.owner==='self').map(p =>
-          `<option value="${esc(p.pack_id)}">${esc(p.name)}（${p.n_atoms} 条）</option>`).join('')}</select></div>
-      <div class="cfg-row"><span class="cfg-label">包含哪些知识集</span>
+          `<option value="${esc(p.pack_id)}">${esc(p.name)}（${p.n_atoms} ${T('条')}）</option>`).join('')}</select></div>
+      <div class="cfg-row"><span class="cfg-label">${T('包含哪些知识集')}</span>
         <span id="xp-colls" class="pk-chips"></span></div>
-      <div class="cfg-row"><span class="cfg-label">文件名</span><input id="pack-name" placeholder="my-worker"></div>
-      <div class="cfg-row"><span class="cfg-label">作者</span><input id="pack-author" placeholder="可选"></div>
-      <div class="cfg-row" style="align-items:flex-start"><span class="cfg-label">属性</span>
+      <div class="cfg-row"><span class="cfg-label">${T('文件名')}</span><input id="pack-name" placeholder="my-worker"></div>
+      <div class="cfg-row"><span class="cfg-label">${T('作者')}</span><input id="pack-author" placeholder="${T('可选')}"></div>
+      <div class="cfg-row" style="align-items:flex-start"><span class="cfg-label">${T('属性')}</span>
         <div class="pk-attrs" id="xp-attrs">${attrGroups(pd.attrs||[])}</div></div>
-      <label class="cfg-row"><span class="cfg-label">严格脱敏</span><input type="checkbox" id="pack-strict" checked></label>
-      <label class="cfg-row"><span class="cfg-label">包含能力画像</span><input type="checkbox" id="pack-profile" checked></label>
-      <label class="cfg-row"><span class="cfg-label">包含原始归档清单（谨慎）</span><input type="checkbox" id="pack-raw"></label>
-      <div class="acts"><button class="primary" id="pack-export">导出资源包</button>
-        <button id="pack-audit">重新体检</button></div>
+      <label class="cfg-row"><span class="cfg-label">${T('严格脱敏')}</span><input type="checkbox" id="pack-strict" checked></label>
+      <label class="cfg-row"><span class="cfg-label">${T('包含能力画像')}</span><input type="checkbox" id="pack-profile" checked></label>
+      <label class="cfg-row"><span class="cfg-label">${T('包含原始归档清单（谨慎）')}</span><input type="checkbox" id="pack-raw"></label>
+      <div class="acts"><button class="primary" id="pack-export">${T('导出资源包')}</button>
+        <button id="pack-audit">${T('重新体检')}</button></div>
       <div id="pack-out" class="kv" style="margin-top:8px"></div>
     </div>
 
     <div class="card">
-      <h3>导入他人资源包 <span class="kv">上传后预览，确认后写入；导入后知识集默认关闭，可按需开启</span></h3>
+      <h3>${T('导入他人资源包')} <span class="kv">${T('上传后预览，确认后写入；导入后知识集默认关闭，可按需开启')}</span></h3>
       <div class="acts" style="margin-top:10px">
         <label class="primary" style="display:inline-flex;align-items:center;padding:6px 12px;
           border-radius:6px;cursor:pointer;font-size:12px">
-          选择 .minime.zip 文件
+          ${T('选择 .minime.zip 文件')}
           <input type="file" id="pack-file" accept=".zip" style="display:none">
         </label>
         <span class="kv" id="pack-upload-out"></span>
       </div>
-      <div class="kv" style="margin-top:8px">也可以手动把包放进 <code>store/packs</code>，刷新即可看到。</div>
+      <div class="kv" style="margin-top:8px">${T('也可以手动把包放进 store/packs，刷新即可看到。')}</div>
       ${fileRows ? `<table style="width:100%;border-collapse:collapse;font-size:12px;margin-top:10px">
         <thead><tr style="color:var(--fg-3);text-align:left;border-bottom:1px solid var(--line)">
-          <th style="padding:6px 4px">包文件</th><th>操作</th></tr></thead>
-        <tbody>${fileRows}</tbody></table>` : '<div class="kv" style="margin-top:6px">本地还没有包文件</div>'}
+          <th style="padding:6px 4px">${T('包文件')}</th><th>${T('操作')}</th></tr></thead>
+        <tbody>${fileRows}</tbody></table>` : `<div class="kv" style="margin-top:6px">${T('本地还没有包文件')}</div>`}
       <div id="pack-detail" class="kv" style="margin-top:10px"></div>
     </div>
 
     <div class="card">
-      <h3>脱敏体检 <span class="kv">扫描 ${audit.atoms||0} 条知识 · 导出时按下面的处理方式自动处理</span></h3>
+      <h3>${T('脱敏体检')} <span class="kv">${T('扫描 {0} 条知识 · 导出时按下面的处理方式自动处理', audit.atoms||0)}</span></h3>
       <div style="margin-top:8px">${auditRows}</div>
       <div class="acts" style="margin-top:8px">
-        <button class="sm ghost" id="sens-go">给新知识补判敏感度</button>
+        <button class="sm ghost" id="sens-go">${T('给新知识补判敏感度')}</button>
         <span id="sens-out" class="kv"></span>
       </div>
     </div>`;
@@ -2044,10 +2614,10 @@ async function loadPacks(){
 }
 
 function attrGroups(attrs){
-  const groups = [['core','核心内容'],['facet','标签'],['source','来源'],['meta','可信度与时间'],['usage','使用反馈']];
+  const groups = [['core',T('核心内容')],['facet',T('标签')],['source',T('来源')],['meta',T('可信度与时间')],['usage',T('使用反馈')]];
   const sensTag = p => p === 'sens'
-    ? '<span class="pk-badge off" style="margin-left:6px">敏感</span>'
-    : '<span class="pk-badge on" style="margin-left:6px">公开</span>';
+    ? `<span class="pk-badge off" style="margin-left:6px">${T('敏感')}</span>`
+    : `<span class="pk-badge on" style="margin-left:6px">${T('公开')}</span>`;
   return groups.map(([g, label]) => {
     const items = attrs.filter(a => a.group === g);
     if (!items.length) return '';
@@ -2079,36 +2649,36 @@ function bindPacks(audit){
         if (badge){
           const on = pack.enabled_collections;
           badge.className = 'pk-badge ' + (on ? 'on' : 'off');
-          badge.textContent = on ? `开启 ${on}/${pack.collections.length}` : '全部关闭';
+          badge.textContent = on ? `${T('开启')} ${on}/${pack.collections.length}` : T('全部关闭');
         }
       }
     }
     const anyOn = (PACKDATA.packs||[]).some(p => (p.collections||[]).some(c => c.enabled));
-    toast(`${el.checked ? '已开启' : '已关闭'}「${label}」`
-      + (anyOn ? '' : '；当前无已开启知识集，检索不限制范围'), 'ok');
+    toast(`${el.checked ? T('已开启「{0}」', label) : T('已关闭「{0}」', label)}`
+      + (anyOn ? '' : `；${T('当前无已开启知识集，检索不限制范围')}`), 'ok');
   });
   $$('[data-new-coll]').forEach(b => b.onclick = async () => {
-    const name = await promptBox({title:'新建知识集', placeholder:'如「docker 排障经验」', ok:'创建'});
+    const name = await promptBox({title:T('新建知识集'), placeholder:T('如「docker 排障经验」'), ok:T('创建')});
     if (!name) return;
     const r = await post('/api/packs', {action:'create_collection',
       pack_id:b.dataset.newColl, name});
     if (r.error) return toast(r.error, 'error');
-    toast(`已创建知识集「${name}」（当前为空）；用下方筛选条件向其中添加内容`, 'ok');
+    toast(T('已创建知识集「{0}」（当前为空）；用下方筛选条件向其中添加内容', name), 'ok');
     reload();
   });
   $$('[data-coll-drop]').forEach(b => b.onclick = async () => {
-    const ok = await confirmBox({title:`移除知识集「${b.dataset.collTitle}」？`,
-      text:'知识本身不会删除，仍保留在默认包里。', ok:'移除', danger:true});
+    const ok = await confirmBox({title:T(`移除知识集「${b.dataset.collTitle}」？`),
+      text:T('知识本身不会删除，仍保留在默认包里。'), ok:T('移除'), danger:true});
     if (!ok) return;
     const r = await post('/api/packs', {action:'drop_collection',
       collection_id:b.dataset.collDrop});
     if (r.error) return toast(r.error, 'error');
-    toast('已移除', 'ok');
+    toast(T('已移除'), 'ok');
     reload();
   });
   document.querySelectorAll('[data-del-pack]').forEach(b => b.onclick = async () => {
-    const ok = await confirmBox({title:`删除资源包「${b.dataset.name}」？`,
-      text:'知识本身保留在默认包里，只删除这个包的分组关系。', ok:'删除', danger:true});
+    const ok = await confirmBox({title:T(`删除资源包「${b.dataset.name}」？`),
+      text:T('知识本身保留在默认包里，只删除这个包的分组关系。'), ok:T('删除'), danger:true});
     if (!ok) return;
     const r = await post('/api/packs', {action:'delete_pack', pack_id:b.dataset.delPack});
     if (r.error) return toast(r.error, 'error');
@@ -2119,9 +2689,9 @@ function bindPacks(audit){
     const r = await post('/api/packs', {action:'collection_atoms', collection_id:b.dataset.collView});
     const items = r.items || [];
     $('#pack-detail').innerHTML = `<div class="card" style="margin-top:8px">
-      <h3>${esc(b.dataset.collTitle)} <span class="kv">前 ${items.length} 条</span></h3>
+      <h3>${esc(b.dataset.collTitle)} <span class="kv">${T('前 {0} 条', items.length)}</span></h3>
       ${items.map(a => `<div class="kvrow"><span>${KIND_CN[a.kind]||a.kind} · ${esc(SENS_CN[a.sensitivity]||a.sensitivity||'')}</span>
-        <span>${esc(a.title)} <span class="kv">${fmtT(a.created_at)}</span></span></div>`).join('') || '<div class="kv">空的</div>'}
+        <span>${esc(a.title)} <span class="kv">${fmtT(a.created_at)}</span></span></div>`).join('') || `<div class="kv">${T('空的')}</div>`}
     </div>`;
     $('#pack-detail').scrollIntoView({block:'nearest', behavior:'smooth'});
   }));
@@ -2151,12 +2721,12 @@ function bindPacks(audit){
     const r = await post('/api/packs', {action:'preview', filters:collectFilter()});
     if (r.error) return ($('#fl-out').innerHTML = `<span style="color:var(--bad)">${esc(r.error)}</span>`);
     const s = r.sensitivity || {};
-    $('#fl-out').innerHTML = `<b>命中 ${r.total} 条</b>
-      <span class="kv">公开 ${s.public||0} · 内部 ${s.internal||0} · 私密 ${s.private||0}</span>
+    $('#fl-out').innerHTML = `<b>${T('命中 {0} 条', r.total)}</b>
+      <span class="kv">${T('公开')} ${s.public||0} · ${T('内部')} ${s.internal||0} · ${T('私密')} ${s.private||0}</span>
       ${r.total ? `<div style="margin-top:6px">${(r.samples||[]).map(a => `<div>· ${KIND_CN[a.kind]||a.kind}
         ${esc(a.title)} <span class="kv">${esc(SENS_CN[a.sensitivity]||'')}</span></div>`).join('')}
-        ${r.total > (r.samples||[]).length ? `<div class="kv">…只显示前 ${(r.samples||[]).length} 条</div>` : ''}</div>`
-      : '<div class="kv" style="margin-top:6px">没有命中，放宽条件再试</div>'}`;
+        ${r.total > (r.samples||[]).length ? `<div class="kv">…${T('只显示前 {0} 条', (r.samples||[]).length)}</div>` : ''}</div>`
+      : `<div class="kv" style="margin-top:6px">${T('没有命中，放宽条件再试')}</div>`}`;
   });
   // 条件变化时清掉上一次的预览结果，避免拿旧数字建集
   $$('.fl-kind, .fl-sens').forEach(x => x.onchange = () => {
@@ -2165,27 +2735,27 @@ function bindPacks(audit){
   $('#fl-name').oninput = () => { if ($('#fl-out')) $('#fl-out').innerHTML = ''; };
   $('#fl-create').onclick = async e => {
     const name = $('#fl-name').value.trim();
-    if (!name){ $('#fl-name').focus(); return toast('请先填写知识集名称', 'warn'); }
+    if (!name){ $('#fl-name').focus(); return toast(T('请先填写知识集名称'), 'warn'); }
     await withBusy(e.target, '创建中…', async () => {
       const r = await post('/api/packs', {action:'create_collection', pack_id:$('#fl-pack').value,
         name, filters:collectFilter()});
       if (r.error){ $('#fl-out').innerHTML = `<span style="color:var(--bad)">${esc(r.error)}</span>`; return; }
-      toast(`已创建「${name}」，纳入 ${r.filled||0} 条`, 'ok');
+      toast(T('已创建「{0}」，纳入 {1} 条', name, r.filled||0), 'ok');
       reload();
       setTimeout(() => {
-        const el = $('#pack-hint'); if (el) el.textContent = `已创建「${name}」`;
+        const el = $('#pack-hint'); if (el) el.textContent = T('已创建「{0}」', name);
       }, 300);
     });
   };
 
   $('#np-go').onclick = async e => {
     const name = $('#np-name').value.trim();
-    if (!name){ $('#np-name').focus(); return toast('请先填写资源包名称', 'warn'); }
+    if (!name){ $('#np-name').focus(); return toast(T('请先填写资源包名称'), 'warn'); }
     await withBusy(e.target, '创建中…', async () => {
       const r = await post('/api/packs', {action:'create_pack', name,
         author:$('#np-author').value.trim()});
       if (r.error) return toast(r.error, 'error');
-      toast(`已创建资源包「${name}」，接下来为它创建知识集`, 'ok');
+      toast(T('已创建资源包「{0}」，接下来为它创建知识集', name), 'ok');
       reload();
     });
   };
@@ -2197,21 +2767,21 @@ function bindPacks(audit){
     const colls = p ? (p.collections||[]) : [];
     $('#xp-colls').innerHTML = colls.map(c => `<label class="pk-chip">
       <input type="checkbox" class="xp-coll" value="${esc(c.collection_id)}" checked>${esc(c.name)}（${c.n_atoms}）</label>`).join('')
-      || '<span class="kv">该包还没有知识集</span>';
+      || `<span class="kv">${T('该包还没有知识集')}</span>`;
   };
   if ($('#xp-pack')) { $('#xp-pack').onchange = refreshColls; refreshColls(); }
 
   $('#pack-export').onclick = async e => {
     const pid = $('#xp-pack') ? $('#xp-pack').value : '';
     const colls = $$('.xp-coll:checked').map(x => x.value);
-    if (!colls.length){ $('#xp-colls').scrollIntoView({block:'center'}); return toast('请至少选择一个知识集', 'warn'); }
+    if (!colls.length){ $('#xp-colls').scrollIntoView({block:'center'}); return toast(T('请至少选择一个知识集'), 'warn'); }
     const attrs = {};
     $$('.xp-attr').forEach(x => attrs[x.value] = x.checked);
     const hidden = $$('.xp-attr:not(:checked)').length;
     if (hidden){
-      const ok = await confirmBox({title:`有 ${hidden} 个属性未勾选`,
-        text:'未勾选的敏感属性会在导出时被隐去或脱敏（例如来源引用、项目标签、精确时间）。',
-        ok:'继续导出'});
+      const ok = await confirmBox({title:T('有 {0} 个属性未勾选', hidden),
+        text:T('未勾选的敏感属性会在导出时被隐去或脱敏（例如来源引用、项目标签、精确时间）。'),
+        ok:T('继续导出')});
       if (!ok) return;
     }
     await withBusy(e.target, '导出中…', async () => {
@@ -2225,36 +2795,36 @@ function bindPacks(audit){
       if (r.error){ $('#pack-out').innerHTML = `<span style="color:var(--bad)">${esc(r.error)}</span>`; return; }
       const pr = r.privacy || {};
       const residual = pr.residual_risk || [];
-      $('#pack-out').innerHTML = `<span style="color:var(--ok)">已导出</span> · ${r.atoms} 条知识 · ${r.decisions} 条决策样例 · ${r.size_kb} KB
-        · ${pr.strict ? '严格脱敏' : '基础脱敏'}
-        ${residual.length ? `<br><span style="color:var(--warn)">! 仍有残留：${residual.map(esc).join('、')}；建议启用「严格脱敏」或取消勾选相关属性后重新导出</span>`
-                          : `<br><span class="kv">自查通过：包内未发现路径/密钥/邮箱/手机号</span>`}
-        ${(r.hidden_attrs||[]).length ? `<br><span class="kv">已隐去：${r.hidden_attrs.map(esc).join('、')}</span>` : ''}
-        <br><a href="/api/pack/download?file=${encodeURIComponent(r.pack.split('/').pop())}"><button class="sm primary">下载这个包</button></a>`;
-      toast('导出完成，可以下载了', 'ok');
+      $('#pack-out').innerHTML = `<span style="color:var(--ok)">${T('已导出')}</span> · ${r.atoms} ${T('条知识')} · ${r.decisions} ${T('条决策样例')} · ${r.size_kb} KB
+        · ${pr.strict ? T('严格脱敏') : T('基础脱敏')}
+        ${residual.length ? `<br><span style="color:var(--warn)">${T('! 仍有残留：{0}；建议启用「严格脱敏」或取消勾选相关属性后重新导出', residual.map(esc).join('、'))}</span>`
+                          : `<br><span class="kv">${T('自查通过：包内未发现路径/密钥/邮箱/手机号')}</span>`}
+        ${(r.hidden_attrs||[]).length ? `<br><span class="kv">${T('已隐去：{0}', r.hidden_attrs.map(esc).join('、'))}</span>` : ''}
+        <br><a href="/api/pack/download?file=${encodeURIComponent(r.pack.split('/').pop())}"><button class="sm primary">${T('下载这个包')}</button></a>`;
+      toast(T('导出完成，可以下载了'), 'ok');
       reload();
     });
   };
-  $('#pack-audit').onclick = async () => { $('#pack-out').textContent = '体检中…'; reload(); };
+  $('#pack-audit').onclick = async () => { $('#pack-out').textContent = T('体检中…'); reload(); };
   $('#sens-go').onclick = async () => {
     const r = await post('/api/packs', {action:'assign_sensitivity'});
-    $('#sens-out').textContent = r.error ? r.error : `公开 ${r.public} · 内部 ${r.internal} · 私密 ${r.private}`;
+    $('#sens-out').textContent = r.error ? r.error : `${T('公开')} ${r.public} · ${T('内部')} ${r.internal} · ${T('私密')} ${r.private}`;
   };
 
   // ---- 导入
   $('#pack-file').onchange = async e => {
     const f = e.target.files[0];
     if (!f) return;
-    $('#pack-upload-out').textContent = `上传中…（${(f.size/1024).toFixed(0)} KB）`;
+    $('#pack-upload-out').textContent = T('上传中…（{0} KB）', (f.size/1024).toFixed(0));
     const fd = new FormData();
     fd.append('file', f, f.name);
     const r = await fetch('/api/pack', {method:'POST', body:fd}).then(x => x.json())
-      .catch(() => ({error: '上传中断，请重试'}));
+      .catch(() => ({error: T('上传中断，请重试')}));
     if (r.error || !r.file){
-      $('#pack-upload-out').innerHTML = `<span style="color:var(--bad)">上传失败：${esc(r.error || '未知错误')}</span>`;
+      $('#pack-upload-out').innerHTML = `<span style="color:var(--bad)">${T('上传失败：{0}', r.error || T('未知错误'))}</span>`;
       return;
     }
-    $('#pack-upload-out').innerHTML = `<span style="color:var(--ok)">已上传</span> ${esc(r.file)}`;
+    $('#pack-upload-out').innerHTML = `<span style="color:var(--ok)">${T('已上传')}</span> ${esc(r.file)}`;
     await loadPacks();
     const pre = await post('/api/pack', {action:'inspect', file:r.file});
     if (pre.manifest) showPackPreview(r.file, pre.manifest, pre.size_kb);
@@ -2268,12 +2838,12 @@ function bindPacks(audit){
   }));
   $$('[data-import]').forEach(b => b.onclick = () => importPackFlow(b.dataset.import));
   $$('[data-delete]').forEach(b => b.onclick = async () => {
-    const ok = await confirmBox({title:`删除包文件「${b.dataset.delete}」？`,
-      text:'只删本地 zip，已经导入的知识不受影响。', ok:'删除', danger:true});
+    const ok = await confirmBox({title:T(`删除包文件「${b.dataset.delete}」？`),
+      text:T('只删本地 zip，已经导入的知识不受影响。'), ok:T('删除'), danger:true});
     if (!ok) return;
     const r = await post('/api/pack', {action:'delete', file:b.dataset.delete});
     if (r.error) return toast(r.error, 'error');
-    toast('已删除包文件', 'ok');
+    toast(T('已删除包文件'), 'ok');
     reload();
   });
 }
@@ -2284,20 +2854,20 @@ function showPackPreview(file, m, sizeKb){
   const prv = m.privacy || {};
   const colls = m.collections || [];
   $('#pack-detail').innerHTML = `<div class="card" style="margin-top:8px">
-    <h3>包预览：${esc(m.name || file)}</h3>
-    <div class="kvrow"><span>规模</span><span>${cov.atoms ?? '—'} 条知识 · ${colls.length} 套知识集 · ${sizeKb ?? '—'} KB</span></div>
-    <div class="kvrow"><span>作者 / 创建</span><span>${esc(m.author || '匿名')} · ${fmtT(m.created_at)} · ${esc(m.version || '')}</span></div>
-    <div class="kvrow"><span>知识类型</span><span>${Object.entries(cov.kinds||{}).map(([k,v]) => `${KIND_CN[k]||k} ${v}`).join(' · ') || '—'}</span></div>
-    ${colls.length ? `<div class="kvrow"><span>知识集</span><span>${colls.map(c => `${esc(c.name)}（${c.n_atoms ?? '—'}）`).join(' · ')}</span></div>` : ''}
-    <div class="kvrow"><span>隐私声明</span><span>${prv.strict ? '严格脱敏' : '基础脱敏'}
-      ${(prv.residual_risk||[]).length ? `<span style="color:var(--warn)">（残留：${prv.residual_risk.map(esc).join('、')}）</span>` : '（自查通过）'}</span></div>
-    ${(prv.hidden||[]).length ? `<div class="kvrow"><span>对方隐去</span><span class="kv">${prv.hidden.map(h => esc(h.label)).join('、')}</span></div>` : ''}
+    <h3>${T('包预览：')}${esc(m.name || file)}</h3>
+    <div class="kvrow"><span>${T('规模')}</span><span>${cov.atoms ?? '—'} ${T('条知识')} · ${colls.length} ${T('套知识集')} · ${sizeKb ?? '—'} KB</span></div>
+    <div class="kvrow"><span>${T('作者 / 创建')}</span><span>${esc(m.author || T('匿名'))} · ${fmtT(m.created_at)} · ${esc(m.version || '')}</span></div>
+    <div class="kvrow"><span>${T('知识类型')}</span><span>${Object.entries(cov.kinds||{}).map(([k,v]) => `${KIND_CN[k]||k} ${v}`).join(' · ') || '—'}</span></div>
+    ${colls.length ? `<div class="kvrow"><span>${T('知识集')}</span><span>${colls.map(c => `${esc(c.name)}（${c.n_atoms ?? '—'}）`).join(' · ')}</span></div>` : ''}
+    <div class="kvrow"><span>${T('隐私声明')}</span><span>${prv.strict ? T('严格脱敏') : T('基础脱敏')}
+      ${(prv.residual_risk||[]).length ? `<span style="color:var(--warn)">${T('（残留：{0}）', prv.residual_risk.map(esc).join('、'))}</span>` : T('（自查通过）')}</span></div>
+    ${(prv.hidden||[]).length ? `<div class="kvrow"><span>${T('对方隐去')}</span><span class="kv">${prv.hidden.map(h => esc(h.label)).join('、')}</span></div>` : ''}
     <div class="acts" style="margin-top:12px">
-      <label class="cfg-row" style="margin:0"><span class="cfg-label">导入后立即开启</span>
+      <label class="cfg-row" style="margin:0"><span class="cfg-label">${T('导入后立即开启')}</span>
         <input type="checkbox" id="imp-enable"></label>
-      <button class="primary sm" id="imp-go">导入为资源包</button>
+      <button class="primary sm" id="imp-go">${T('导入为资源包')}</button>
     </div>
-    <div class="kv" style="margin-top:6px">导入后它成为独立的「他人导入」资源包：可开启使用、不可再次导出。</div>
+    <div class="kv" style="margin-top:6px">${T('导入后它成为独立的「他人导入」资源包：可开启使用、不可再次导出。')}</div>
   </div>`;
   $('#imp-go').onclick = () => importPackFlow(file);
 }
@@ -2310,18 +2880,18 @@ async function importPackFlow(file){
     const pre = await post('/api/pack', {action:'import', file, dry_run:true});
     if (pre.error){ $('#pack-detail').innerHTML = `<span style="color:var(--bad)">${esc(pre.error)}</span>`; return; }
     const ok = await confirmBox({
-      title: `导入「${pre.pack}」？`,
-      text: `${pre.atoms} 条知识、${(pre.collections||[]).length} 套知识集。导入后${enable ? '立即开启' : '默认关闭（可稍后开启）'}，成为独立的「他人导入」资源包。`,
-      ok: '导入'});
+      title: T(`导入「${pre.pack}」？`),
+      text: T('{0} 条知识、{1} 套知识集。导入后{2}，成为独立的「他人导入」资源包。', pre.atoms, (pre.collections||[]).length, enable ? T('立即开启') : T('默认关闭（可稍后开启）')),
+      ok: T('导入')});
     if (!ok) return;
     const r = await post('/api/pack', {action:'import', file, dry_run:false, enable});
     if (r.error){
       $('#pack-detail').innerHTML = `<span style="color:var(--bad)">${esc(r.error)}</span>`;
       return toast(r.error, 'error');
     }
-    toast(`导入完成，新增 ${r.imported} 条`, 'ok');
-    $('#pack-detail').innerHTML = `<span style="color:var(--ok)">导入完成</span> · 新增 ${r.imported} 条 · 全库 ${r.total_atoms} 条
-       <div style="margin-top:8px">资源包列表已出现「${esc(r.pack)}」，开启需要使用的知识集即可。</div>`;
+    toast(T('导入完成，新增 {0} 条', r.imported), 'ok');
+    $('#pack-detail').innerHTML = `<span style="color:var(--ok)">${T('导入完成')}</span> · ${T('新增 {0} 条', r.imported)} · ${T('全库 {0} 条', r.total_atoms)}
+       <div style="margin-top:8px">${T('资源包列表已出现「{0}」，开启需要使用的知识集即可。', esc(r.pack))}</div>`;
     loadStats();
     loadPacks();
   });
@@ -2333,7 +2903,7 @@ async function loadLogs(){
   const d = await get(`/api/logs?level=${level}&limit=200&q=${encodeURIComponent(state.logQ||'')}`);
   const rows = (d.items||[]).map(r => {
     const color = r.level === 'error' ? 'var(--bad)' : r.level === 'warn' ? 'var(--warn)' : 'var(--ok)';
-    const t = new Date((r.ts||0)*1000).toLocaleString('zh-CN');
+    const t = new Date((r.ts||0)*1000).toLocaleString(CUR_LANG==='en'?'en-US':'zh-CN');
     const brief = Object.entries(r).filter(([k]) => !['id','ts','level','event'].includes(k))
       .map(([k,v]) => `${k}=${typeof v === 'object' ? JSON.stringify(v) : v}`).join(' · ').slice(0, 160);
     return `<tr data-log="${esc(r.id)}" class="logrow">
@@ -2342,18 +2912,18 @@ async function loadLogs(){
       <td class="kv" style="white-space:nowrap">${t}</td></tr>`;
   }).join('');
   const lv = (state.logLevel || 'all');
-  $('#view').innerHTML = `<h2>运行日志 <span class="tabs-hint">排查问题时优先查看；「错误」筛选可定位失败操作</span><br><span class="kv">${d.stats.entries} 条（错误 ${d.stats.errors}） ·
-    只记录业务动作和采集结果，面板轮询不写入</span></h2>
+  $('#view').innerHTML = `<h2>${T('运行日志')} <span class="tabs-hint">${T('排查问题时优先查看；「错误」筛选可定位失败操作')}</span><br><span class="kv">${d.stats.entries} ${T('条')}（${T('错误')} ${d.stats.errors}） ·
+    ${T('只记录业务动作和采集结果，面板轮询不写入')}</span></h2>
     <div class="acts" style="margin-bottom:10px">
       <span class="seg">${['all','info','warn','error'].map(l => `<button data-level="${l}" class="${lv===l?'on':''}">${
-        l==='all'?'全部':l==='info'?'普通':l==='warn'?'警告':'错误'}</button>`).join('')}</span>
-      <input type="text" id="log-q" placeholder="按事件名/内容过滤，回车生效" value="${esc(state.logQ||'')}"
+        T(l==='all'?'全部':l==='info'?'普通':l==='warn'?'警告':'错误')}</button>`).join('')}</span>
+      <input type="text" id="log-q" placeholder="${T('按事件名/内容过滤，回车生效')}" value="${esc(state.logQ||'')}"
         style="width:280px">
-      <button id="log-refresh">刷新</button>
-      <span class="kv" style="margin-left:10px">文件 ${esc(d.stats.path)} · 上限 ${d.stats.max} 条</span>
+      <button id="log-refresh">${T('刷新')}</button>
+      <span class="kv" style="margin-left:10px">${T('文件 {0} · 上限 {1} 条', esc(d.stats.path), d.stats.max)}</span>
     </div>
     <div class="card" style="padding:0">${rows ? `<table style="width:100%;border-collapse:collapse;font-size:12px">${rows}</table>`
-      : `<div class="empty">没有匹配的日志。执行采集或保存设置后会生成记录。</div>`}</div>
+      : `<div class="empty">${T('没有匹配的日志。执行采集或保存设置后会生成记录。')}</div>`}</div>
     <pre id="log-detail" class="kv" style="display:none;white-space:pre-wrap;margin-top:10px"></pre>`;
   document.querySelectorAll('[data-level]').forEach(b => b.onclick = () => {
     state.logLevel = b.dataset.level; loadLogs();
@@ -2380,22 +2950,22 @@ async function loadLogs(){
 // ---------------- archive
 async function loadArchive(){
   const s = await get('/api/stats');
-  $('#view').innerHTML = `<h2>归档 <span class="tabs-hint">原始数据都在这里；即使知识库被删，也能用 minime restore 重建</span></h2>
-  <div class="card"><h3>原始归档（内容寻址，不可变）</h3>
+  $('#view').innerHTML = `<h2>${T('归档')} <span class="tabs-hint">${T('原始数据都在这里；即使知识库被删，也能用 minime restore 重建')}</span></h2>
+  <div class="card"><h3>${T('原始归档（内容寻址，不可变）')}</h3>
     <div class="kv" style="margin-top:8px">
-      对象数 <b>${s.raw_objects}</b> · 总大小 <b>${fmtSize(s.raw_bytes)}</b><br>
-      位置 <code>minime/store/raw/&lt;yyyy-mm-dd&gt;/&lt;sha256&gt;.json</code><br>
-      索引 <code>minime/store/manifest.db</code> 表 <code>raw_object</code>
+      ${T('对象数')} <b>${s.raw_objects}</b> · ${T('总大小')} <b>${fmtSize(s.raw_bytes)}</b><br>
+      ${T('位置')} <code>minime/store/raw/&lt;yyyy-mm-dd&gt;/&lt;sha256&gt;.json</code><br>
+      ${T('索引')} <code>minime/store/manifest.db</code> ${T('表')} <code>raw_object</code>
     </div></div>
-  <div class="card"><h3>会话轨迹</h3>
+  <div class="card"><h3>${T('会话轨迹')}</h3>
     <div class="kv" style="margin-top:8px">
-      快照会话 <b>${s.snapshot_sessions}</b> · 有效轮次 <b>${s.turns}</b> · 文件变更 <b>${s.file_changes}</b><br>
-      来源 <code>~/Library/Application Support/Trae/ModularData/ai-agent/snapshot/&lt;sid&gt;/v2/.git</code>
+      ${T('快照会话')} <b>${s.snapshot_sessions}</b> · ${T('有效轮次')} <b>${s.turns}</b> · ${T('文件变更')} <b>${s.file_changes}</b><br>
+      ${T('来源')} <code>~/Library/Application Support/Trae/ModularData/ai-agent/snapshot/&lt;sid&gt;/v2/.git</code>
     </div></div>
-  <div class="card"><h3>知识库</h3>
+  <div class="card"><h3>${T('知识库')}</h3>
     <div class="kv" style="margin-top:8px">
-      知识 <b>${s.atoms}</b> 条 · 图谱实体 <b>${s.entities}</b> · 关系 <b>${s.relations}</b> · 反馈事件 <b>${s.usage_events}</b><br>
-      位置 <code>minime/store/kb.db</code>
+      ${T('知识')} <b>${s.atoms}</b> ${T('条')} · ${T('图谱实体')} <b>${s.entities}</b> · ${T('关系')} <b>${s.relations}</b> · ${T('反馈事件')} <b>${s.usage_events}</b><br>
+      ${T('位置')} <code>minime/store/kb.db</code>
     </div></div>`;
 }
 
@@ -2405,7 +2975,7 @@ async function loadCollectors(){
   const rows = (d.adapters||[]).map(a => {
     const ok = a.health && a.last_status === 'ok';
     const color = ok ? 'var(--ok)' : (a.last_status === 'unavailable' ? 'var(--warn)' : 'var(--bad)');
-    const last = a.last_run ? new Date(a.last_run*1000).toLocaleString('zh-CN') : '未运行';
+    const last = a.last_run ? new Date(a.last_run*1000).toLocaleString(CUR_LANG==='en'?'en-US':'zh-CN') : T('未运行');
     const bad = a.last_status === 'unavailable' || a.last_status === 'error' || !a.health;
     return `<tr>
       <td><b>${esc(a.label||a.adapter)}</b>
@@ -2414,31 +2984,31 @@ async function loadCollectors(){
       <td><span style="color:${color}">●</span> ${COL_ST_CN[a.last_status]||esc(a.last_status||a.detail||'—')}
         ${a.last_error?`<div class="kv">${esc(a.last_error.slice(0,120))}</div>`:''}
         ${!a.health && a.detail ? `<div class="kv">${esc(a.detail)}</div>`:''}</td>
-      <td class="kv">每 ${fmtDur(a.interval_s)}<br>${a.next_in_s?`${fmtDur(a.next_in_s)} 后再跑`:'待运行'}</td>
-      <td class="kv">${a.objects} 份 / ${fmtSize(a.bytes)}</td>
-      <td class="kv">${last}<br>${a.runs} 次${a.fails?` · 失败 ${a.fails}`:''}</td>
-      <td><button class="sm" data-run="${esc(a.adapter)}" data-label="${esc(a.label||a.adapter)}">立即采集</button></td>
+      <td class="kv">${T('每 {0}', fmtDur(a.interval_s))}<br>${a.next_in_s?`${fmtDur(a.next_in_s)} ${T('后再跑')}`:T('待运行')}</td>
+      <td class="kv">${a.objects} ${T('份')} / ${fmtSize(a.bytes)}</td>
+      <td class="kv">${last}<br>${a.runs} ${T('次')}${a.fails?` · ${T('失败')} ${a.fails}`:''}</td>
+      <td><button class="sm" data-run="${esc(a.adapter)}" data-label="${esc(a.label||a.adapter)}">${T('立即采集')}</button></td>
     </tr>`;
   }).join('');
-  $('#view').innerHTML = `<h2>采集源 <span class="tabs-hint">采集源异常时，行内会给出处理建议</span><br><span class="kv">归档 ${d.archive.objects} 份 / ${fmtSize(d.archive.bytes)}
-    · 采集周期可在「设置 → 定时采集 · 各源周期」调整</span></h2>
+  $('#view').innerHTML = `<h2>${T('采集源')} <span class="tabs-hint">${T('采集源异常时，行内会给出处理建议')}</span><br><span class="kv">${T('归档 {0} 份 / {1}', d.archive.objects, fmtSize(d.archive.bytes))}
+    · ${T('采集周期可在「设置 → 定时采集 · 各源周期」调整')}</span></h2>
     <div class="card"><table style="width:100%;border-collapse:collapse;font-size:12px">
       <thead><tr style="color:var(--fg-3);text-align:left;border-bottom:1px solid var(--line)">
-        <th style="padding:6px 4px">信息源</th><th>状态</th><th>周期</th><th>归档</th><th>最近</th><th>操作</th></tr></thead>
+        <th style="padding:6px 4px">${T('信息源')}</th><th>${T('状态')}</th><th>${T('周期')}</th><th>${T('归档')}</th><th>${T('最近')}</th><th>${T('操作')}</th></tr></thead>
       <tbody>${rows}</tbody></table></div>
-    <div class="acts" style="margin-top:12px"><button class="primary" id="run-all">全部立即采集</button>
-      <span class="kv" style="margin-left:10px">采集仅获取原始数据，清洗后才会生成知识 → 在「处理进度」执行「更新知识库」</span></div>`;
+    <div class="acts" style="margin-top:12px"><button class="primary" id="run-all">${T('全部立即采集')}</button>
+      <span class="kv" style="margin-left:10px">${T('采集仅获取原始数据，清洗后才会生成知识 → 在「处理进度」执行「更新知识库」')}</span></div>`;
   $$('[data-run]').forEach(b => b.onclick = () => withBusy(b, '提交中…', async () => {
     const r = await post('/api/collectors', {adapter: b.dataset.run});
     if (r.error) return toast(r.error, 'error');
-    toast(`已开始采集「${b.dataset.label}」，完成后请在「处理进度」清洗`, 'ok');
+    toast(T('已开始采集「{0}」，完成后请在「处理进度」清洗', b.dataset.label), 'ok');
     pollJobs();
     setTimeout(loadCollectors, 1200);
   }));
   if ($('#run-all')) $('#run-all').onclick = e => withBusy(e.target, '提交中…', async () => {
     const r = await post('/api/collectors', {});
     if (r.error) return toast(r.error, 'error');
-    toast('全部采集源已开始采集', 'ok');
+    toast(T('全部采集源已开始采集'), 'ok');
     pollJobs();
     setTimeout(loadCollectors, 1200);
   });
@@ -2454,20 +3024,20 @@ async function loadChat(){
   document.body.classList.add('chat-mode');
   $('#view').innerHTML = `<div class="chat-wrap">
     <div class="chat-list">
-      <button class="primary" id="chat-new" style="width:100%;margin-bottom:8px">＋ 新对话</button>
+      <button class="primary" id="chat-new" style="width:100%;margin-bottom:8px">${T('＋ 新对话')}</button>
       <div id="chat-sess"></div>
     </div>
     <div class="chat-main">
       <div class="chat-head">
-        <span class="ttl" id="chat-ttl">新对话</span>
+        <span class="ttl" id="chat-ttl">${T('新对话')}</span>
         <span class="kv" id="chat-meta">${esc(d.model || '')}</span>
         <span style="flex:1"></span>
-        <button class="sm ghost" id="chat-rename">重命名</button>
+        <button class="sm ghost" id="chat-rename">${T('重命名')}</button>
       </div>
       <div class="chat-body" id="chat-body"></div>
       <div class="chat-foot">
-        <textarea id="chat-q" rows="1" placeholder="基于知识库提问。Enter 发送，Shift+Enter 换行"></textarea>
-        <button class="primary" id="chat-send">发送</button>
+        <textarea id="chat-q" rows="1" placeholder="${T('基于知识库提问。Enter 发送，Shift+Enter 换行')}"></textarea>
+        <button class="primary" id="chat-send">${T('发送')}</button>
       </div>
     </div>
   </div>`;
@@ -2481,8 +3051,8 @@ async function loadChat(){
     $('#chat-q').focus();
   };
   $('#chat-rename').onclick = async () => {
-    if (!CHAT.sid) return toast('请先创建对话', 'warn');
-    const t = await promptBox({title:'重命名对话', value:$('#chat-ttl').textContent, ok:'保存'});
+    if (!CHAT.sid) return toast(T('请先创建对话'), 'warn');
+    const t = await promptBox({title:T('重命名对话'), value:$('#chat-ttl').textContent, ok:T('保存')});
     if (!t) return;
     const r = await post('/api/chat', {action:'rename', session_id:CHAT.sid, title:t});
     if (r.error) return toast(r.error, 'error');
@@ -2512,18 +3082,18 @@ function renderChatSessions(){
   el.innerHTML = CHAT.sessions.length ? CHAT.sessions.map(s => `
     <div class="chat-item ${s.id === CHAT.sid ? 'on' : ''}" data-sid="${esc(s.id)}">
       <span class="t" title="${esc(s.title)}">${esc(s.title)}</span>
-      <button class="del" data-del="${esc(s.id)}" title="删除">×</button>
-    </div>`).join('') : `<div class="kv" style="padding:8px">还没有对话</div>`;
+      <button class="del" data-del="${esc(s.id)}" title="${T('删除')}">×</button>
+    </div>`).join('') : `<div class="kv" style="padding:8px">${T('还没有对话')}</div>`;
   el.querySelectorAll('[data-sid]').forEach(it => it.onclick = e => {
     if (e.target.dataset.del) return;
-    if (CHAT.busy) return toast('正在回答，本轮结束后可切换会话', 'warn');
+    if (CHAT.busy) return toast(T('正在回答，本轮结束后可切换会话'), 'warn');
     CHAT.sid = it.dataset.sid; syncURL(); openChat(CHAT.sid);
     renderChatSessions();
   });
   el.querySelectorAll('[data-del]').forEach(b => b.onclick = async e => {
     e.stopPropagation();
-    const ok = await confirmBox({title:'删除这段对话？', text:'聊天记录会一并删除，知识库不受影响。',
-      ok:'删除', danger:true});
+    const ok = await confirmBox({title:T('删除这段对话？'), text:T('聊天记录会一并删除，知识库不受影响。'),
+      ok:T('删除'), danger:true});
     if (!ok) return;
     const r = await post('/api/chat', {action:'delete', session_id:b.dataset.del});
     if (r.error) return toast(r.error, 'error');
@@ -2538,21 +3108,21 @@ async function openChat(sid){
   if (!body) return;
   if (!sid){
     body.innerHTML = `<div class="chat-empty">
-      <div style="font-size:15px;color:var(--fg)">向知识库提问</div>
-      <div style="font-size:12px">回答仅依据已采集的知识，并标注来源；点击来源可查看原文。</div>
+      <div style="font-size:15px;color:var(--fg)">${T('向知识库提问')}</div>
+      <div style="font-size:12px">${T('回答仅依据已采集的知识，并标注来源；点击来源可查看原文。')}</div>
       <div class="prompts">${PROMPTS.map(p => `<button class="sm" data-p="${esc(p)}">${esc(p)}</button>`).join('')}</div>
     </div>`;
     body.querySelectorAll('[data-p]').forEach(b => b.onclick = () => {
       $('#chat-q').value = b.dataset.p; sendChat();
     });
-    $('#chat-ttl').textContent = '新对话';
+    $('#chat-ttl').textContent = T('新对话');
     return;
   }
   const s = await get('/api/chat?id=' + encodeURIComponent(sid));
   if (s.error){ body.innerHTML = `<div class="empty">${esc(s.error)}</div>`; return; }
   CHAT.sid = s.id;
   $('#chat-ttl').textContent = s.title;
-  $('#chat-meta').textContent = `${s.model || ''} · ${s.n_turns} 轮`;
+  $('#chat-meta').textContent = `${s.model || ''} · ${s.n_turns} ${T('轮')}`;
   body.innerHTML = s.messages.map(m => msgHTML(m)).join('');
   bindRefs(body);
   body.scrollTop = body.scrollHeight;
@@ -2576,7 +3146,7 @@ function msgHTML(m){
       <span class="n">[${i+1}]</span><span>${mdLite(r.title)}</span></div>`).join('');
   const content = isUser ? esc(m.content) : mdLite(m.content);
   return `<div class="msg ${isUser ? 'user' : 'assistant'}">
-    <div class="avatar">${isUser ? '你' : '分身'}</div>
+    <div class="avatar">${isUser ? T('你') : T('分身')}</div>
     <div class="bubble"><div class="text">${content}</div>
       ${refs ? `<div class="refs">${refs}</div>` : ''}
       ${m.elapsed_s ? `<div class="kv" style="margin-top:6px">${m.elapsed_s}s</div>` : ''}
@@ -2606,11 +3176,11 @@ async function sendChat(){
   const q = $('#chat-q');
   const text = q.value.trim();
   if (!text) return;
-  if (CHAT.busy) return toast('上一轮回答尚未结束，请稍后', 'warn');
+  if (CHAT.busy) return toast(T('上一轮回答尚未结束，请稍后'), 'warn');
   const body = $('#chat-body');
   if (!CHAT.sid){
     const r = await post('/api/chat', {action:'new'});
-    if (r.error || !r.session_id) return toast(r.error || '新建对话失败', 'error');
+    if (r.error || !r.session_id) return toast(r.error || T('新建对话失败'), 'error');
     CHAT.sid = r.session_id;
     body.innerHTML = '';
     syncURL();
@@ -2618,21 +3188,21 @@ async function sendChat(){
   CHAT.busy = true;
   q.value = ''; q.style.height = 'auto';
   const send = $('#chat-send');
-  send.disabled = true; send.textContent = '思考中…';
+  send.disabled = true; send.textContent = T('思考中…');
   body.insertAdjacentHTML('beforeend', msgHTML({role:'user', content:text}));
   const pending = document.createElement('div');
   pending.className = 'msg assistant';
-  pending.innerHTML = `<div class="avatar">分身</div><div class="bubble">
-    <div class="typing"><i></i><i></i><i></i> 正在检索知识并生成回答…</div></div>`;
+  pending.innerHTML = `<div class="avatar">${T('分身')}</div><div class="bubble">
+    <div class="typing"><i></i><i></i><i></i> ${T('正在检索知识并生成回答…')}</div></div>`;
   body.appendChild(pending);
   body.scrollTop = body.scrollHeight;
 
   const r = await post('/api/chat', {action:'ask', session_id:CHAT.sid, question:text});
   pending.remove();
   if (r.error){
-    body.insertAdjacentHTML('beforeend', `<div class="msg assistant"><div class="avatar">分身</div>
-      <div class="bubble"><div class="text" style="color:var(--bad)">回答失败：${esc(r.error)}</div>
-      <div class="acts" style="margin-top:8px"><button class="sm" id="retry-ask">重新提问</button></div></div></div>`);
+    body.insertAdjacentHTML('beforeend', `<div class="msg assistant"><div class="avatar">${T('分身')}</div>
+      <div class="bubble"><div class="text" style="color:var(--bad)">${T('回答失败：')}${esc(r.error)}</div>
+      <div class="acts" style="margin-top:8px"><button class="sm" id="retry-ask">${T('重新提问')}</button></div></div></div>`);
     const rb = $('#retry-ask');
     if (rb) rb.onclick = () => { q.value = text; sendChat(); };
   } else {
@@ -2641,7 +3211,7 @@ async function sendChat(){
   }
   body.scrollTop = body.scrollHeight;
   CHAT.busy = false;
-  send.disabled = false; send.textContent = '发送';
+  send.disabled = false; send.textContent = T('发送');
   q.focus();
   const s = await get('/api/chat?id=' + encodeURIComponent(CHAT.sid));
   if (!s.error){
@@ -2670,7 +3240,7 @@ const NAV_MORE = new Set(['progress', 'workspaces', 'collectors', 'logs', 'setti
 function setNavMore(open, remember){
   $('nav').classList.toggle('more-open', open);
   $('#nav-more-btn').setAttribute('aria-expanded', String(open));
-  $('#nav-more-t').textContent = open ? '收起' : '更多';
+  $('#nav-more-t').textContent = open ? T('收起') : T('更多');
   // 只记住用户主动的展开/收起；进到次要页时的自动展开不写入偏好
   if (remember) try { localStorage.setItem('navMore', open ? '1' : '0'); } catch(e){ /* 隐私模式忽略 */ }
 }
@@ -2700,6 +3270,22 @@ $$('nav button[data-view]').forEach(b => b.onclick = () => {
   syncURL();
   renderView();
 });
+
+// 顶栏静态文案（导航 / 更多 / 主题 / 帮助 / 语言 按钮）：语言切换后只翻这部分，避免整页重建失焦
+const NAV_LABEL = {
+  chat: '对话', atoms: '知识浏览', graph: '知识图谱', profile: '能力画像', packs: '资源包',
+  progress: '处理进度', workspaces: '工作区', collectors: '采集源', logs: '运行日志',
+  settings: '设置', archive: '归档'
+};
+function translateChrome(){
+  $$('nav button[data-view]').forEach(b => { b.textContent = T(NAV_LABEL[b.dataset.view] || b.dataset.view); });
+  const nm = $('#nav-more-t'); if (nm) nm.textContent = T('更多');
+  const nmb = $('#nav-more-btn'); if (nmb) nmb.title = T('展开更多：处理进度、工作区、采集源、运行日志、设置、归档');
+  syncLangBtn();
+  syncThemeBtn();
+  const hb = $('#help-btn'); if (hb){ hb.textContent = T('? 怎么用'); hb.title = T('怎么用'); }
+  // 侧栏与当前视图由 renderView() 重画，这里只动不会被重画的顶栏
+}
 
 // ---------------- 抽屉：统一开关、Esc 关闭、焦点归还
 let _drawerFocus = null;
@@ -2731,12 +3317,12 @@ function showHelp(){
   closeDrawers();
   const d = document.createElement('div');
   d.className = 'drawer';
-  d.innerHTML = `<button class="close" title="关闭（Esc）">✕</button>
-    <h3>minime 怎么用</h3>
-    <div class="kv" style="margin-bottom:14px">将工作轨迹采集为可检索、可对话的个人知识库。</div>
+  d.innerHTML = `<button class="close" title="${T('关闭（Esc）')}">✕</button>
+    <h3>${T('minime 怎么用')}</h3>
+    <div class="kv" style="margin-bottom:14px">${T('将工作轨迹采集为可检索、可对话的个人知识库。')}</div>
     ${GUIDE_STEPS.map(([t, v]) => `<div class="kvrow" style="grid-template-columns:88px 1fr;margin-bottom:12px">
-      <span style="color:var(--acc)">${t}</span><span style="line-height:1.75">${v}</span></div>`).join('')}
-    <h3 style="font-size:12px;margin:18px 0 8px">常用命令</h3>
+      <span style="color:var(--acc)">${T(t)}</span><span style="line-height:1.75">${T(v)}</span></div>`).join('')}
+    <h3 style="font-size:12px;margin:18px 0 8px">${T('常用命令')}</h3>
     <pre style="font-size:11px;line-height:1.9;color:var(--acc)">minime web                 打开这个面板（最常用）
 minime status              一眼看全：采集 / 归纳 / 定时 / 服务
 minime llm --run 20        后台归纳一批
@@ -2744,17 +3330,20 @@ minime llm --all           归纳全部待处理轮次
 minime chat "问题"         命令行问一句
 minime doctor              自检，逐项告诉你哪里不对
 minime diag                导出脱敏诊断包（反馈问题时用）</pre>
-    <div class="kv" style="margin-top:14px">完整说明见仓库 <code>docs/使用手册.md</code></div>`;
+    <div class="kv" style="margin-top:14px">${T('完整说明见仓库 docs/使用手册.md')}</div>`;
   document.body.appendChild(d);
   d.querySelector('.close').onclick = () => d.remove();
   d.querySelector('.close').focus();
 }
 $('#help-btn').onclick = showHelp;
 $('#theme-btn').onclick = () => setTheme(!isLight());
+$('#lang-btn').onclick = () => applyLang(CUR_LANG === 'en' ? 'zh' : 'en');
 
 (async () => {
   readURL();
   syncThemeBtn();
+  syncLangBtn();
+  translateChrome();
   let navSaved = null;
   try { navSaved = localStorage.getItem('navMore'); } catch(e){ /* 隐私模式忽略 */ }
   setNavMore(navSaved === '1' || NAV_MORE.has(state.view));
