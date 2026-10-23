@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "minime"
-version = "0.1.0rc6"
+version = "0.1.0rc7"
 description = "个人知识库 / 决策分身：把工作轨迹沉淀成可检索、可追溯、可分享的个人知识库"
 readme = "README.md"
 requires-python = ">=3.10"

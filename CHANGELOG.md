@@ -1,5 +1,17 @@
 # 更新记录
 
+## v0.1.0-pre.7（2026-10-23）
+
+### 开源准备
+
+- README 改为英文默认（`README.md`），中文移至 `README.zh-CN.md`，顶部双语互链；图片与文档链接改用绝对地址，兼容 GitHub 与 PyPI 渲染。
+- 新增 `SECURITY.md` 与 `CONTRIBUTING.md`：私密漏洞报告、开发环境、测试与提交规范。
+- CI 增加 `ubuntu-latest`，与 README 声明的 Linux 支持一致。
+- `pyproject.toml` 补充作者、`project.urls` 与 MIT / Beta / Python 版本 classifier。
+- README 增加面板截图。
+- 版本号 `0.1.0rc7` 对应 `v0.1.0-pre.7`。
+- 已发布到 Repsy `https://repo.repsy.io/tengwang/pypi/`：`minime 0.1.0rc7` 的 wheel 与 sdist。
+
 ## v0.1.0-pre.6（2026-10-22）
 
 ### 新增

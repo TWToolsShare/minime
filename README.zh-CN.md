@@ -17,7 +17,7 @@
 - **有据可查**：每条回答都标注来源，能回到具体会话与文件
 - **越用越准**：你标记「有用 / 不相关」，检索排序会跟着调整
 
-当前版本 `v0.1.0-pre.6`，支持 macOS / Windows / Linux。
+当前版本 `v0.1.0-pre.7`，支持 macOS / Windows / Linux。
 
 <p align="center">
   <img src="https://raw.githubusercontent.com/TWToolsShare/minime/main/docs/panel.png" alt="minime 面板：知识浏览" width="900">

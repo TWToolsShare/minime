@@ -17,7 +17,7 @@ The decisions you made, the pitfalls you hit, and the conventions you set in Tra
 - **Traceable answers**: every answer cites its sources and links back to the original session or file
 - **Gets better with use**: mark answers as useful or irrelevant and retrieval ranking adjusts
 
-Current version: `v0.1.0-pre.6`. Supports macOS, Windows, and Linux.
+Current version: `v0.1.0-pre.7`. Supports macOS, Windows, and Linux.
 
 <p align="center">
   <img src="https://raw.githubusercontent.com/TWToolsShare/minime/main/docs/panel.png" alt="minime panel: knowledge browser" width="900">
