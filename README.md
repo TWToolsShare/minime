@@ -17,7 +17,7 @@ The decisions you made, the pitfalls you hit, and the conventions you set in Tra
 - **Traceable answers**: every answer cites its sources and links back to the original session or file
 - **Gets better with use**: mark answers as useful or irrelevant and retrieval ranking adjusts
 
-Current version: `v0.1.0-pre.8`. Supports macOS, Windows, and Linux.
+Current version: `v0.1.0-pre.9`. Supports macOS, Windows, and Linux.
 
 <p align="center">
   <img src="https://raw.githubusercontent.com/TWToolsShare/minime/main/docs/panel.png" alt="minime panel: knowledge browser" width="900">
@@ -49,6 +49,8 @@ minime setup
 ```
 
 This collects the data already on your machine, cleans it into knowledge entries, and builds the knowledge graph and capability profile. The first run takes a few minutes.
+
+The scheduled task is installed automatically on first use: it runs every 30 minutes to collect, extract turns, and clean. Once you configure a model endpoint and enable **LLM enrichment** in Settings, it also enriches automatically — no manual top-up needed.
 
 ### 3. Open the panel
 
@@ -152,7 +154,7 @@ A few notes:
 - **Obsidian privacy**: add `private: true` or `minime: ignore` to a note's frontmatter and the whole note is skipped.
 - **Doubao**: the export-directory route needs no system permissions. Only direct reads from the Doubao app container require macOS Full Disk Access for the terminal running minime (not for Doubao itself), and content stored in IndexedDB still needs the export route.
 - **Collection intervals**: each source can be tuned in Settings → **Scheduled collection → Source intervals**. Changing intervals does not require reinstalling the scheduled task; changing the trigger interval does.
-- **Scheduled collection**: launchd on macOS, Task Scheduler on Windows, and `minime watch` on Linux. Scheduled runs only collect and clean; enrichment stays manual.
+- **Scheduled collection**: launchd on macOS, Task Scheduler on Windows, and `minime watch` on Linux. The task is installed automatically on first run; it collects, extracts turns, and cleans, and also enriches when LLM enrichment is enabled.
 
 ---
 
@@ -255,7 +257,7 @@ minime restore                 Rebuild the knowledge base without re-collecting
 minime diag                    Export a desensitized diagnostic bundle
 
 # Scheduled collection
-minime install                 Install the scheduled task (launchd / Task Scheduler)
+minime install                 Install (or reinstall) the scheduled task; auto-installed on first run
 minime uninstall               Remove the scheduled task; data is kept
 ```
 
@@ -267,7 +269,7 @@ minime uninstall               Remove the scheduled task; data is kept
 pipx's bin directory is not on PATH. Run `pipx ensurepath`, or open a new terminal. `minime link` can also register the command in `~/.local/bin`.
 
 **The pending count in Progress never moves**
-That is expected. Scheduled runs only collect and clean; enrichment is manual. Click **Enrich a batch / Enrich all**, or run `minime llm --run 20`.
+Scheduled runs now include enrichment, so two things to check: make sure an LLM endpoint is configured and enabled in Settings (without it, minime only collects and cleans and never enriches); and that the scheduled task is still loaded (it is installed automatically on first run — if you removed it with `minime uninstall`, reinstall with `minime install`). You can always top up manually with **Enrich a batch / Enrich all** or `minime llm --run 20`.
 
 **It says "not in the knowledge base"**
 Check whether Progress still has pending turns; then check Sources and Workspaces to confirm the content was collected at all.

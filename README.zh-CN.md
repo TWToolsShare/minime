@@ -17,7 +17,7 @@
 - **有据可查**：每条回答都标注来源，能回到具体会话与文件
 - **越用越准**：你标记「有用 / 不相关」，检索排序会跟着调整
 
-当前版本 `v0.1.0-pre.8`，支持 macOS / Windows / Linux。
+当前版本 `v0.1.0-pre.9`，支持 macOS / Windows / Linux。
 
 <p align="center">
   <img src="https://raw.githubusercontent.com/TWToolsShare/minime/main/docs/panel.png" alt="minime 面板：知识浏览" width="900">
@@ -49,6 +49,8 @@ minime setup
 ```
 
 这一步会把你本机已有的数据采集进来、清洗成知识条目，并建立知识图谱和能力画像。第一次需要几分钟。
+
+定时任务会在你第一次运行 minime 时自动安装：每 30 分钟采集、抽取轨迹、清洗入库。在设置页配好模型接口并开启「启用 LLM 归纳」后，它也会自动归纳，不用再手动补。
 
 ### 3. 打开面板
 
@@ -152,7 +154,7 @@ minime chat --list                                     # 历史会话
 - **Obsidian 隐私**：在某篇笔记的 frontmatter 里写 `private: true` 或 `minime: ignore`，整篇不会被采集。
 - **豆包**：导出目录方案不需要任何系统权限。只有想直接读豆包应用容器时才需要给「运行 minime 的终端」授予 macOS 完全磁盘访问权限（不是给豆包授权），且正文若存在 IndexedDB 中仍需走导出方案。
 - **采集频率**：设置页「定时采集 · 各源周期」可分别调整。改周期不需要重装定时任务；只有改「定时触发间隔」才需要 `minime install`。
-- **定时采集**：macOS 用 launchd，Windows 用计划任务，Linux 用 `minime watch` 常驻。定时任务只做采集和清洗，归纳仍由你手动触发。
+- **定时采集**：macOS 用 launchd，Windows 用计划任务，Linux 用 `minime watch` 常驻。首次运行会自动安装定时任务；它负责采集、抽取轨迹与清洗，开启 LLM 归纳后也会自动归纳。
 
 ---
 
@@ -255,7 +257,7 @@ minime restore                 从原始归档重建知识库（不重新采集�
 minime diag                    导出脱敏诊断包，方便反馈问题
 
 # 定时采集
-minime install                 安装定时采集（macOS launchd / Windows 计划任务）
+minime install                 安装（或重装）定时采集；首次运行会自动安装
 minime uninstall               移除定时任务，数据保留
 ```
 
@@ -267,7 +269,7 @@ minime uninstall               移除定时任务，数据保留
 pipx 的 bin 目录不在 PATH 里。执行 `pipx ensurepath`，或重开终端。也可以用 `minime link` 把命令注册到 `~/.local/bin`。
 
 **处理进度里的「待处理」一直不动**
-这是正常的。定时任务只采集和清洗，归纳需要你手动触发：点「立即归纳一批 / 归纳全部」，或运行 `minime llm --run 20`。
+定时任务现在也会做归纳，先确认两件事：设置页里已填模型接口并开启「启用 LLM 归纳」（没配模型时只采集清洗、不提炼）；定时任务仍在运行（首次运行会自动安装，若你用 `minime uninstall` 移除过，执行 `minime install` 装回）。也可以随时手动补：点「立即归纳一批 / 归纳全部」，或运行 `minime llm --run 20`。
 
 **问了问题，它说「知识库里没有」**
 先看「处理进度」是否还有待归纳的轮次；再看「采集源」和「工作区」，确认相关内容确实被采到了。

@@ -17,7 +17,7 @@
   diag              导出脱敏诊断包（排障用，可发给他人）
   restore           从持久层重建知识库（误删/清空后恢复）
   pack              数据源包：export / import / inspect
-  install           安装 launchd 定时采集（间隔取 schedule.interval_minutes）
+  install           安装/重装定时任务（首次运行会自动安装）
   uninstall         移除定时任务（保留数据）
 """
 import json
@@ -58,7 +58,7 @@ USAGE = """minime — 个人知识库 / 决策分身
   minime pack <export|import|inspect> ...   数据源包
   minime migrate --from <旧目录> [--merge]  把旧代码目录里的 store/config.json 搬到数据目录
   minime link               注册 minime 命令到 PATH
-  minime install            安装定时采集
+  minime install            安装/重装定时任务（首次运行会自动安装）
   minime uninstall          移除定时任务
 
 面板：http://127.0.0.1:8765/
@@ -534,19 +534,6 @@ def cmd_link():
     return 0
 
 
-def _pipeline_step_args():
-    """定时任务跑 pipeline 时追加的参数。
-
-    turns（快照轨迹抽取）是 LLM 归纳的唯一输入：用 --fast 跳过它，新会话就永远
-    进不了 turn 表，LLM 也没东西可归纳。所以这里不再用 --fast；只在 LLM 关闭时
-    才加 --no-llm。
-    """
-    import config  # noqa: PLC0415
-    if (config.load().get("llm") or {}).get("enabled"):
-        return []
-    return ["--no-llm"]
-
-
 def cmd_install():
     import settings_schema as SS  # noqa: PLC0415
     sched = (SS.load().get("schedule") or {})
@@ -568,13 +555,14 @@ def cmd_install():
     os.makedirs(paths.LOGS, exist_ok=True)
     out_log = os.path.join(paths.LOGS, "launchd.out")
     err_log = os.path.join(paths.LOGS, "launchd.err")
-    extra = "".join(f"\n    <string>{a}</string>" for a in _pipeline_step_args())
+    # 不传 --fast / --no-llm：轨迹抽取必须跑，是否归纳交给运行时配置决定。
+    # 否则安装时快照的参数会写死，用户之后在设置里开启 LLM 也不会生效。
     plist = f"""<?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0"><dict>
   <key>Label</key><string>{TASK_NAME}</string>
   <key>ProgramArguments</key><array><string>{PY}</string>
-    <string>{ROOT}/run/pipeline.py</string>{extra}</array>
+    <string>{ROOT}/run/pipeline.py</string></array>
   <key>WorkingDirectory</key><string>{ROOT}</string>
   <key>EnvironmentVariables</key><dict>
     <key>HOME</key><string>{os.path.expanduser("~")}</string>
@@ -599,6 +587,10 @@ def cmd_install():
     print(f"  计划：每 {minutes} 分钟执行一次 minime update（采集按各源周期自动判断，未到点跳过）")
     print(f"  日志：{LOG_PATH} 与 {err_log}")
     print("  下一步：minime status 确认采集进度")
+    try:  # 主动安装即视为重新开启，清掉「用户要求不自动安装」标记
+        os.remove(SCHEDULE_OFF)
+    except OSError:
+        pass
     return 0
 
 
@@ -606,7 +598,7 @@ def _install_windows(minutes):
     """Windows 用计划任务（schtasks）实现定时采集。"""
     pipeline = os.path.join(ROOT, "run", "pipeline.py")
     os.makedirs(paths.LOGS, exist_ok=True)
-    tr = f'"{PY}" "{pipeline}"' + "".join(f" {a}" for a in _pipeline_step_args())
+    tr = f'"{PY}" "{pipeline}"'
     r = subprocess.run(["schtasks", "/Create", "/F", "/SC", "MINUTE",
                         "/MO", str(minutes), "/TN", TASK_NAME, "/TR", tr],
                        capture_output=True, text=True)
@@ -621,6 +613,31 @@ def _install_windows(minutes):
     print(f"  日志：{LOG_PATH}")
     print("  下一步：minime status 确认采集进度")
     return 0
+
+
+SCHEDULE_OFF = os.path.join(paths.DATA_ROOT, ".schedule-off")
+
+
+def _ensure_schedule():
+    """首次运行自动注册定时任务，让采集与归纳开箱即用。
+
+    用户显式 uninstall 时会写 .schedule-off 标记，之后不再自动装回。
+    """
+    if sys.platform != "darwin" and os.name != "nt":
+        return
+    if os.path.exists(SCHEDULE_OFF):
+        return
+    try:
+        import settings_schema as SS  # noqa: PLC0415
+        if not (SS.load().get("schedule") or {}).get("enabled", True):
+            return
+        if _sched_installed():
+            return
+        print("  首次运行：自动安装定时任务（采集 + 轨迹 + 归纳）")
+        cmd_install()
+    except Exception as e:  # noqa: BLE001
+        print(f"  ! 定时任务自动安装失败：{type(e).__name__}: {e}"
+              f"（可稍后执行 minime install）")
 
 
 def cmd_uninstall():
@@ -638,6 +655,11 @@ def cmd_uninstall():
     else:
         print("没有安装定时任务")
     print(f"  注意：数据目录 {paths.DATA_ROOT} 已保留（含知识库与配置）；需要清空请手动删除")
+    try:  # 标记用户明确不要定时任务，避免下次运行又自动装回
+        with open(SCHEDULE_OFF, "w") as f:
+            f.write(str(int(time.time())))
+    except OSError:
+        pass
     return 0
 
 
@@ -649,13 +671,25 @@ def main():
     if cmd in ("-h", "--help", "help"):
         print(USAGE)
         return 0
+    # 首次运行自动注册定时任务（显式 install/uninstall 自己管理；setup/update
+    # 先跑完流水线再装，避免和刚拉起的定时任务抢 .pipeline.lock）
+    if cmd not in ("setup", "update", "install", "uninstall"):
+        _ensure_schedule()
     if cmd == "setup":
         rc = _run("run/pipeline.py")
+        if rc == 0:
+            import config  # noqa: PLC0415
+            if not (config.load().get("llm") or {}).get("enabled"):
+                print("  ! LLM 归纳未启用：先按结构化方式入库，不会提炼决策/偏好。")
+                print("    → 面板「设置」填模型接口并开启，或 minime set llm.enabled true")
+        _ensure_schedule()
         if rc == 0:
             print("  下一步：minime web 打开面板，或 minime mcp 接入 Trae")
         return rc
     if cmd == "update":
-        return _run("run/pipeline.py", "--fast")
+        rc = _run("run/pipeline.py")
+        _ensure_schedule()
+        return rc
     if cmd == "collect":
         return _run("collector/collect.py", *(["--force"] if "--force" in rest else []))
     if cmd == "status":

@@ -17,7 +17,7 @@ DEFAULTS = {
         "enabled": False, "base_url": "http://127.0.0.1:8000/v1",
         "model": "Qwen3.8-27B", "api_key": "none", "timeout_s": 180,
         "max_tokens": 2048, "disable_thinking": True,
-        "max_atoms_per_run": 40, "batch_size": 4, "temperature": 0.2,
+        "max_atoms_per_run": 12, "batch_size": 4, "temperature": 0.2,
         "prompt_lang": "zh", "summary_threshold": 1200,
         "summary_max_per_run": 100,
     },

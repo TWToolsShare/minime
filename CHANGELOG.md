@@ -1,5 +1,18 @@
 # 更新记录
 
+## v0.1.0-pre.9（2026-10-23）
+
+### 改进
+
+- **定时任务开箱即用**：首次运行任意 `minime` 命令时自动安装定时任务；`setup` / `update` 会先跑完流水线再安装，避免与刚拉起的任务抢 `.pipeline.lock`。`minime install` / `uninstall` 仍由用户显式控制。
+- **卸载后不再自动装回**：`minime uninstall` 写入 `.schedule-off` 标记，后续命令不再自动安装；重新执行 `minime install` 时清除标记。
+- **定时任务参数不再写死**：launchd / schtasks 只调用 `run/pipeline.py`，不再附带任何开关。是否做 LLM 归纳改由运行时读取 `llm.enabled` 决定——此前在安装后才开启 LLM 的用户，必须重装定时任务才会生效。
+- `minime update` 移除 `--fast`：它同样会跳过轨迹抽取，导致新会话进不了 `turn` 表。
+- `llm.max_atoms_per_run` 默认值 40 → 12，避免定时任务单轮占满 30 分钟触发间隔。
+- `minime setup` 结束时会提示 LLM 归纳未启用，并给出开启方式。
+- 文档同步：README（中英）快速开始改为三步并说明自动安装；FAQ 与使用手册更新「归纳是手动的」旧说法。
+- 版本号 `0.1.0rc9` 对应 `v0.1.0-pre.9`。
+
 ## v0.1.0-pre.8（2026-10-23）
 
 ### 新增
