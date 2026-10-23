@@ -9,14 +9,27 @@ description = "个人知识库 / 决策分身：把工作轨迹沉淀成可检�
 readme = "README.md"
 requires-python = ">=3.10"
 license = { file = "LICENSE" }
+authors = [{ name = "TWToolsShare" }]
 keywords = ["knowledge-base", "mcp", "personal-ai", "sqlite"]
 classifiers = [
+  "Development Status :: 4 - Beta",
+  "License :: OSI Approved :: MIT License",
   "Programming Language :: Python :: 3",
+  "Programming Language :: Python :: 3.10",
+  "Programming Language :: Python :: 3.11",
+  "Programming Language :: Python :: 3.12",
+  "Programming Language :: Python :: 3.13",
   "Operating System :: MacOS",
   "Operating System :: Microsoft :: Windows",
   "Operating System :: POSIX :: Linux",
 ]
 dependencies = []
+
+[project.urls]
+Homepage = "https://github.com/TWToolsShare/minime"
+Repository = "https://github.com/TWToolsShare/minime"
+Issues = "https://github.com/TWToolsShare/minime/issues"
+Changelog = "https://github.com/TWToolsShare/minime/blob/main/CHANGELOG.md"
 
 [project.optional-dependencies]
 # 核心功能零第三方依赖；这三项按需安装（pipx install "minime[full]"）

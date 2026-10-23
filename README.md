@@ -1,164 +1,164 @@
 # minime
 
 <p align="center">
-  <img src="docs/brand/logo-dark.svg" alt="minime" width="340">
+  <b>English</b> · <a href="https://github.com/TWToolsShare/minime/blob/main/README.zh-CN.md">简体中文</a>
 </p>
 
-<p align="center">把你和 AI 一起干的活，变成随时能问的「第二个你」。</p>
+<p align="center">
+  <img src="https://raw.githubusercontent.com/TWToolsShare/minime/main/docs/brand/logo-dark.svg" alt="minime" width="340">
+</p>
 
-你在 Trae、Qoder、WorkBuddy 里做过的判断、踩过的坑、定下的规范，大多散落在聊天记录里，过几天就找不回来。minime 在本机把这些轨迹收起来，整理成一条条可检索的知识，再用对话或 MCP 交还给 AI——让它按你以前的做法回答，而不是泛泛而谈。
+<p align="center">Turn the work you do with AI into a second self you can always ask.</p>
 
-- **只读采集**：不改动任何被采集应用的数据
-- **本地优先**：知识库、配置、日志都留在你自己的电脑上
-- **有据可查**：每条回答都标注来源，能回到具体会话与文件
-- **越用越准**：你标记「有用 / 不相关」，检索排序会跟着调整
+The decisions you made, the pitfalls you hit, and the conventions you set in Trae, Qoder, or WorkBuddy are scattered across chat logs. A few days later, they are hard to find again. minime collects those traces on your machine, turns them into searchable knowledge, and hands them back to AI through chat or MCP — so it answers with your past judgement instead of generic advice.
 
-当前版本 `v0.1.0-pre.6`，支持 macOS / Windows / Linux。
+- **Read-only collection**: never modifies the data of the apps it reads
+- **Local-first**: your knowledge base, config, and logs stay on your own machine
+- **Traceable answers**: every answer cites its sources and links back to the original session or file
+- **Gets better with use**: mark answers as useful or irrelevant and retrieval ranking adjusts
+
+Current version: `v0.1.0-pre.6`. Supports macOS, Windows, and Linux.
+
+<p align="center">
+  <img src="https://raw.githubusercontent.com/TWToolsShare/minime/main/docs/panel.png" alt="minime panel: knowledge browser" width="900">
+</p>
 
 ---
 
-## 三步开始
+## Quick start
 
-### 1. 安装
+### 1. Install
 
-需要 Python 3.10+。推荐用 pipx 安装，独立环境，不污染系统 Python：
+Requires Python 3.10+. pipx is recommended — it creates an isolated environment and does not touch your system Python:
 
 ```bash
 pipx install \
   --index-url "https://repo.repsy.io/tengwang/pypi/simple/" \
   --pip-args="--prerelease=allow" minime
 
-# 三个可选增强：MCP 接入、读取 Trae 云端会话、向量检索加速
+# Optional enhancements: MCP server, Trae cloud sessions, vector search acceleration
 pipx inject minime mcp cryptography numpy
 ```
 
-如果安装时报 `401 Unauthorized`，说明软件仓库暂时还是私有的。可以联系维护者开放，或改用带 token 的地址：
+> The three optional dependencies live on upstream PyPI, so they are installed with `inject` rather than an extra. minime works without them; you only lose MCP, cloud session decryption, and vector acceleration.
 
-```bash
-pipx install \
-  --index-url "https://<用户名>:<token>@repo.repsy.io/tengwang/pypi/simple/" \
-  --pip-args="--prerelease=allow" minime
-```
-
-> 三个可选依赖只在上游 PyPI，所以拆成 `install` + `inject` 两步。不装也能用，只是少了 MCP、云端会话和向量加速。
-
-### 2. 首次构建
+### 2. First build
 
 ```bash
 minime setup
 ```
 
-这一步会把你本机已有的数据采集进来、清洗成知识条目，并建立知识图谱和能力画像。第一次需要几分钟。
+This collects the data already on your machine, cleans it into knowledge entries, and builds the knowledge graph and capability profile. The first run takes a few minutes.
 
-### 3. 打开面板
+### 3. Open the panel
 
 ```bash
 minime web
 ```
 
-浏览器访问 **http://127.0.0.1:8765/**。
+Then open **http://127.0.0.1:8765/**.
 
-第一次进来，建议按这个顺序走一遍：
+For the first run, this order works well:
 
-1. 顶栏 **处理进度** → 点「完整更新」→ 等它跑完
-2. 顶栏 **对话** → 问一句你最近想过的问题
-3. 觉得答得不准 → 回 **处理进度** 补归纳
+1. Go to **Progress** → click **Full update** → wait for it to finish
+2. Go to **Chat** → ask a question you have thought about recently
+3. If the answer is not good enough → go back to **Progress** and run more enrichment
 
 ---
 
-## 面板里有什么
+## What is in the panel
 
-11 个页签，日常只用三个：
+There are 11 tabs. Three of them cover most daily use:
 
-| 页签 | 用途 | 什么时候用 |
+| Tab | What it does | When to use it |
 |---|---|---|
-| **对话** | 基于你的知识库提问、追问，回答带来源 | 最常用 |
-| **处理进度** | 看采集、清洗、归纳各做到哪一步 | 想知道「还剩多少活」 |
-| **知识浏览** | 按项目、技术、类型筛选知识条目 | 想翻具体内容 |
+| **Chat** | Ask and follow up against your knowledge base, with citations | Most of the time |
+| **Progress** | See how far collection, cleaning, and enrichment have gone | When you want to know "how much is left" |
+| **Knowledge** | Browse and filter knowledge by project, tech, or type | When you want to read specific entries |
 
-其余的按需使用：
+The rest are there when you need them:
 
-| 页签 | 用途 |
+| Tab | What it does |
 |---|---|
-| 知识图谱 | 项目、技术、概念之间的关系图 |
-| 能力画像 | 从你的工作轨迹里归纳出的 8 个维度评分 |
-| 资源包 | 导出 / 导入可分享的知识包 |
-| 工作区 | 哪些工作区被采集了、各有多少会话 |
-| 采集源 | 每个数据源的状态、采集周期、手动触发 |
-| 运行日志 | 所有操作记录，可按级别和关键词过滤 |
-| 设置 | 填目录、配模型、改采集周期 |
-| 归档 | 原始数据的存放位置与占用空间 |
+| Knowledge graph | Relationships between projects, technologies, and concepts |
+| Profile | Eight capability dimensions inferred from your work traces |
+| Packs | Export and import shareable knowledge packs |
+| Workspaces | Which workspaces were collected and how many sessions each has |
+| Sources | Status, schedule, and manual trigger for every data source |
+| Logs | All operations, filterable by level and keyword |
+| Settings | Directories, models, and collection intervals |
+| Archive | Where raw data lives and how much space it uses |
 
 ---
 
-## 日常怎么用
+## Everyday use
 
-### 问它问题
+### Ask questions
 
-进入 **对话**，底部输入问题，Enter 发送，Shift+Enter 换行。
+Open **Chat**, type your question at the bottom, press Enter to send, Shift+Enter for a new line.
 
-回答会遵守两条规则：
+Answers follow two rules:
 
-- 知识库里有依据 → 给结论，并用 `[1] [2]` 标出来源，点编号可看原文
-- 知识库里没有 → 先明确说「知识库里没有这条」，再给通用建议并标注「（通用经验）」
+- **If the knowledge base has evidence** → give the conclusion and cite sources as `[1] [2]`; click a citation to read the original entry
+- **If it does not** → say "not in the knowledge base" first, then offer general advice labelled "general experience"
 
-这样你能一眼分清哪些是你的经验，哪些是模型的推测。
+This lets you tell your own experience apart from model guesses at a glance.
 
-同一会话可以连续追问，它记得最近 6 轮。左侧是历史会话，可切换、重命名、删除，刷新页面不会丢。
+You can follow up within the same conversation; it remembers the last six turns. The left sidebar lists past conversations — switch, rename, or delete them. Refreshing the page does not lose anything.
 
-习惯命令行的话：
+Prefer the command line?
 
 ```bash
-minime chat "我有哪些架构决策？"
-minime chat --session S18e10c207b6f "那依据是什么？"   # 接着上次聊
-minime chat --list                                     # 历史会话
+minime chat "What architecture decisions have I made?"
+minime chat --session S18e10c207b6f "What was the reasoning?"   # continue a conversation
+minime chat --list                                               # list conversations
 ```
 
-### 把还没归纳的活干完
+### Finish pending enrichment
 
-打开 **处理进度**，看「待处理」数量：
+Open **Progress** and look at the pending count:
 
-- 点 **「立即归纳一批」**：处理 12 轮，适合顺手补一点
-- 点 **「归纳全部」**：一次处理完，耗时较长，可随时在顶栏停止
-- 命令行：`minime llm --run 50` 或 `minime llm --all`，后台执行，关掉终端也会继续
+- **Enrich a batch**: processes 12 turns — good for a quick top-up
+- **Enrich all**: processes everything; takes longer and can be stopped from the top bar
+- Command line: `minime llm --run 50` or `minime llm --all`; runs in the background and keeps going after you close the terminal
 
-进度按「已处理轮次 / 有实质改动的轮次」计算。一轮可能提炼出 0 条，也可能 3 条，所以按轮次看比按条数看更准确。
+Progress is measured as "processed turns / turns with meaningful changes". A turn may produce zero entries or three, so counting turns is more accurate than counting entries.
 
-### 告诉它什么有用
+### Tell it what is useful
 
-知识浏览页每张卡片底部有 **采用 / 引用 / 不相关**：
+Every card in the Knowledge tab has **Adopt / Cite / Irrelevant** buttons:
 
-- 采用、引用 → 这条知识以后更容易被检索到
-- 不相关 → 降权并轻微降低可信度；连续多次会进入「已降权」，但不删除，需要时可在左侧「状态 → 已降权」恢复
+- Adopt or cite → this entry becomes easier to retrieve later
+- Irrelevant → lowers its ranking and slightly reduces confidence; repeated marks move it to "demoted" rather than deleting it, and you can restore it from **Status → Demoted**
 
-对话中被引用的知识也会自动加分。这就是「越用越好用」。
+Knowledge cited in a chat answer is also boosted automatically. That is the "gets better with use" loop.
 
 ---
 
-## 它能收集哪些东西
+## What it can collect
 
-| 数据来源 | 需要配置吗 | 说明 |
+| Source | Configuration | What is collected |
 |---|---|---|
-| **Trae** | 不需要 | 会话快照、云端会话、工作区文件历史、`~/.trae/memory` 记忆 |
-| **本地文档 / 笔记 / 代码** | 需要 | 设置页「本地数据源 → 采集目录」，每行一个路径 |
-| **Obsidian** | 一般不需要 | 自动发现 vault；也可手动指定。支持 frontmatter、`[[双链]]`、`#标签` |
-| **WorkBuddy / WorkBuddy AI** | 不需要 | 会话、长期记忆、已填写的身份文件 |
-| **Qoder** | 不需要 | 本地会话、消息正文、每轮改动的文件清单 |
-| **豆包** | 需要 | 推荐把导出的 JSON / Markdown 放到固定目录，再在设置页填「豆包导出目录」 |
+| **Trae** | None | Session snapshots, cloud sessions, workspace file history, `~/.trae/memory` |
+| **Local docs / notes / code** | Required | Settings → **Local sources → Directories**, one path per line |
+| **Obsidian** | Usually none | Vaults are discovered automatically; frontmatter, `[[wikilinks]]`, and `#tags` are supported |
+| **WorkBuddy / WorkBuddy AI** | None | Sessions, long-term memory, and filled-in identity files |
+| **Qoder** | None | Local sessions, message text, and per-turn changed files |
+| **Doubao** | Required | Recommended: export JSON / Markdown to a fixed directory and set **Doubao export directory** in Settings |
 
-几点说明：
+A few notes:
 
-- **本地目录**：加完目录后下次采集自动生效；想立刻采就 `minime collect --force`。
-- **Obsidian 隐私**：在某篇笔记的 frontmatter 里写 `private: true` 或 `minime: ignore`，整篇不会被采集。
-- **豆包**：导出目录方案不需要任何系统权限。只有想直接读豆包应用容器时才需要给「运行 minime 的终端」授予 macOS 完全磁盘访问权限（不是给豆包授权），且正文若存在 IndexedDB 中仍需走导出方案。
-- **采集频率**：设置页「定时采集 · 各源周期」可分别调整。改周期不需要重装定时任务；只有改「定时触发间隔」才需要 `minime install`。
-- **定时采集**：macOS 用 launchd，Windows 用计划任务，Linux 用 `minime watch` 常驻。定时任务只做采集和清洗，归纳仍由你手动触发。
+- **Local directories**: changes take effect on the next collection; use `minime collect --force` to collect immediately.
+- **Obsidian privacy**: add `private: true` or `minime: ignore` to a note's frontmatter and the whole note is skipped.
+- **Doubao**: the export-directory route needs no system permissions. Only direct reads from the Doubao app container require macOS Full Disk Access for the terminal running minime (not for Doubao itself), and content stored in IndexedDB still needs the export route.
+- **Collection intervals**: each source can be tuned in Settings → **Scheduled collection → Source intervals**. Changing intervals does not require reinstalling the scheduled task; changing the trigger interval does.
+- **Scheduled collection**: launchd on macOS, Task Scheduler on Windows, and `minime watch` on Linux. Scheduled runs only collect and clean; enrichment stays manual.
 
 ---
 
-## 接进 Trae / Claude Code / Cursor
+## Connect to Trae / Claude Code / Cursor
 
-让 AI 客户端直接调用你的知识库：
+Let your AI client call the knowledge base directly:
 
 ```json
 {
@@ -171,57 +171,57 @@ minime chat --list                                     # 历史会话
 }
 ```
 
-> `minime` 不在 PATH 里时，`command` 填 Python 解释器绝对路径，`args` 填 `["/绝对路径/minime/mcp_server/server.py"]`。
+> If `minime` is not on PATH, set `command` to the absolute path of your Python interpreter and `args` to `["/absolute/path/to/minime/mcp_server/server.py"]`.
 
-跨 AI 或跨机器共享同一份记忆时，用 HTTP 模式：
+To share one memory across AIs or machines, use HTTP mode:
 
 ```bash
 minime mcp --http --port 8791
-# 客户端填 http://<主机>:8791/mcp
+# client URL: http://<host>:8791/mcp
 ```
 
-接上之后可以直接说「用 minime 查一下我以前怎么处理这个问题的」。共 18 个工具，最常用的四个：
+Once connected, you can say things like "use minime to look up how I handled this before". There are 18 tools; the four most used are:
 
-| 工具 | 用途 |
+| Tool | Purpose |
 |---|---|
-| `minime_decide` | 依据你的历史经验给决策建议 |
-| `minime_recall` | 检索知识 |
-| `minime_chat` | 多轮问答 |
-| `minime_troubleshoot` | 查排障经验 |
+| `minime_decide` | Make a decision suggestion based on your past experience |
+| `minime_recall` | Search knowledge |
+| `minime_chat` | Multi-turn Q&A |
+| `minime_troubleshoot` | Look up troubleshooting experience |
 
 ---
 
-## 分享你的经验
+## Share your experience
 
-把知识打包成资源包，别人导入后就能复用你的判断方式：
+Package your knowledge so someone else can reuse your judgement:
 
 ```bash
 minime pack export --name my-worker --author alice
-minime pack inspect my-worker.minime.zip      # 先看里面有什么
+minime pack inspect my-worker.minime.zip      # see what is inside first
 minime pack import my-worker.minime.zip --dry-run
 minime pack import my-worker.minime.zip
 ```
 
-- 导出的包默认不包含原始对话，绝对路径会归一为 `~`，密钥和 token 替换为 `***`
-- 包内按「知识集」分组，导入后默认全部关闭，用哪套开哪套
-- 只能导出自己创建的包；别人导入的包只能使用，不能再导出或删除
+- Exports exclude raw conversations by default; absolute paths are normalized to `~`, and keys/tokens are replaced with `***`
+- Packs are grouped into collections; after import everything is disabled until you enable the collections you trust
+- You can only export packs you created; imported packs are read-only and cannot be re-exported or deleted
 
 ---
 
-## 数据与隐私
+## Data and privacy
 
-| 事项 | 说明 |
+| Item | Detail |
 |---|---|
-| 采集方式 | 只读，不修改任何原始应用数据 |
-| 数据位置 | macOS `~/Library/Application Support/minime`；Windows `%LOCALAPPDATA%\minime`；Linux `~/.local/share/minime` |
-| 自定义位置 | 设置环境变量 `MINIME_HOME` |
-| 网络 | 不主动上传任何内容；面板只监听 `127.0.0.1`，拒绝局域网访问 |
-| 配置文件 | `config.json` 权限 600，内含密钥时注意保管 |
-| 导出 | 默认脱敏，敏感属性默认不带 |
+| Collection | Read-only; original app data is never modified |
+| Data location | macOS `~/Library/Application Support/minime`; Windows `%LOCALAPPDATA%\minime`; Linux `~/.local/share/minime` |
+| Custom location | Set `MINIME_HOME` |
+| Network | Nothing is uploaded automatically; the panel binds to `127.0.0.1` and rejects non-loopback Host headers |
+| Config file | `config.json` is written atomically with mode `600`; guard it if it contains keys |
+| Exports | Desensitized by default; sensitive attributes are excluded |
 
-升级、换版本、换安装方式都不会动数据目录。备份只需拷走整个数据目录；换电脑时把目录拷过去，或在新机器上设置同一个 `MINIME_HOME`。
+Upgrading, changing versions, or changing installation methods never touches the data directory. Back up by copying the whole data directory; to move machines, copy it over or set the same `MINIME_HOME` on the new machine.
 
-从源码版迁到 pipx 版时：
+When migrating from a source checkout to the pipx install:
 
 ```bash
 minime migrate --from /path/to/old/minime
@@ -229,74 +229,78 @@ minime migrate --from /path/to/old/minime
 
 ---
 
-## 常用命令
+## Common commands
 
 ```bash
-# 日常
-minime web                     打开面板
-minime status                  一眼看全：采集 / 归纳 / 定时 / 服务
-minime chat "问题"             命令行问一句
+# Daily
+minime web                     Open the panel
+minime status                  Collection / enrichment / schedule / service at a glance
+minime chat "question"         Ask from the command line
 
-# 更新与归纳
-minime update                  增量更新（采集 + 清洗）
-minime collect --force         立刻全部重采
-minime llm --run 20            后台归纳一批
-minime llm --all               归纳全部待处理轮次
+# Updates and enrichment
+minime update                  Incremental update (collect + clean)
+minime collect --force         Re-collect everything now
+minime llm --run 20            Enrich one batch in the background
+minime llm --all               Enrich every pending turn
 
-# 配置
-minime config                  查看当前生效配置
-minime set llm.enabled true    修改一项配置
+# Configuration
+minime config                  Show the effective configuration
+minime set llm.enabled true    Change one setting
 minime set collect.local.roots ~/notes
 
-# 排查与数据
-minime doctor                  自检，全部通过退出码为 0
-minime logs -f                 跟随运行日志
-minime restore                 从原始归档重建知识库（不重新采集）
-minime diag                    导出脱敏诊断包，方便反馈问题
+# Diagnostics and data
+minime doctor                  Self-check; exits 0 when everything passes
+minime logs -f                 Follow the runtime log
+minime restore                 Rebuild the knowledge base without re-collecting
+minime diag                    Export a desensitized diagnostic bundle
 
-# 定时采集
-minime install                 安装定时采集（macOS launchd / Windows 计划任务）
-minime uninstall               移除定时任务，数据保留
+# Scheduled collection
+minime install                 Install the scheduled task (launchd / Task Scheduler)
+minime uninstall               Remove the scheduled task; data is kept
 ```
 
 ---
 
-## 常见问题
+## FAQ
 
-**安装后提示 `minime: command not found`**
-pipx 的 bin 目录不在 PATH 里。执行 `pipx ensurepath`，或重开终端。也可以用 `minime link` 把命令注册到 `~/.local/bin`。
+**`minime: command not found` after installation**
+pipx's bin directory is not on PATH. Run `pipx ensurepath`, or open a new terminal. `minime link` can also register the command in `~/.local/bin`.
 
-**处理进度里的「待处理」一直不动**
-这是正常的。定时任务只采集和清洗，归纳需要你手动触发：点「立即归纳一批 / 归纳全部」，或运行 `minime llm --run 20`。
+**The pending count in Progress never moves**
+That is expected. Scheduled runs only collect and clean; enrichment is manual. Click **Enrich a batch / Enrich all**, or run `minime llm --run 20`.
 
-**问了问题，它说「知识库里没有」**
-先看「处理进度」是否还有待归纳的轮次；再看「采集源」和「工作区」，确认相关内容确实被采到了。
+**It says "not in the knowledge base"**
+Check whether Progress still has pending turns; then check Sources and Workspaces to confirm the content was collected at all.
 
-**某个采集源显示红色**
-点进「采集源」，红行下面会写下一步该做什么；也可以运行 `minime doctor` 看详情。单个源异常不影响其他源。
+**A source is red**
+Open Sources — the red row tells you the next action; `minime doctor` gives more detail. One failing source does not affect the others.
 
-**豆包提示 Operation not permitted**
-macOS 隐私保护导致的，不是豆包坏了。推荐把豆包导出文件放到固定目录，在设置页填「豆包导出目录」，无需任何权限。
+**Doubao says Operation not permitted**
+This is macOS privacy protection, not a broken app. The recommended fix is to export Doubao conversations to a fixed directory and set **Doubao export directory** in Settings; no permissions are needed.
 
-**改了配置不生效**
-`web.*` 需要重启面板，`schedule.*` 需要重新 `minime install`，`collect.*` 下次采集生效。`minime set` 保存时会直接提示该做哪一步。
+**A config change has no effect**
+`web.*` requires a panel restart, `schedule.*` requires `minime install`, and `collect.*` applies on the next collection. `minime set` tells you which step is needed.
 
-**知识库被清空了**
-数据不会真丢，原始归档还在。运行 `minime restore` 可完整重建，不需要重新采集。
+**The knowledge base was cleared**
+The data is not really lost — raw archives are still there. Run `minime restore` to rebuild without re-collecting.
 
-**日志在哪**
-数据目录下 `store/logs/minime.jsonl`，或面板「运行日志」页。
+**Where are the logs?**
+`store/logs/minime.jsonl` under the data directory, or the Logs tab in the panel.
 
-**想反馈问题**
-运行 `minime diag`，会生成一个已脱敏的诊断包（自检 + 进度 + 配置 + 最近日志），直接发出去即可。
+**How do I report a problem?**
+Run `minime diag`. It produces a desensitized bundle (self-check + progress + config + recent logs) that you can share directly.
 
 ---
 
-## 更多文档
+## More documentation
 
-- [使用手册](docs/使用手册.md)：面向使用者的完整操作说明
-- [更新记录](CHANGELOG.md)：每个版本的新增、调整与已知限制
+- [User guide (Chinese)](https://github.com/TWToolsShare/minime/blob/main/docs/使用手册.md) — the complete end-user manual
+- [Changelog](https://github.com/TWToolsShare/minime/blob/main/CHANGELOG.md)
+- [Contributing (Chinese)](https://github.com/TWToolsShare/minime/blob/main/CONTRIBUTING.md) — development setup, tests, and commit conventions
+- [Security policy (Chinese)](https://github.com/TWToolsShare/minime/blob/main/SECURITY.md) — how to report security issues privately
 
-## 许可
+The user guide, contributing guide, and security policy are currently written in Chinese.
+
+## License
 
 MIT
