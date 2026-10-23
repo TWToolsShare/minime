@@ -534,6 +534,19 @@ def cmd_link():
     return 0
 
 
+def _pipeline_step_args():
+    """定时任务跑 pipeline 时追加的参数。
+
+    turns（快照轨迹抽取）是 LLM 归纳的唯一输入：用 --fast 跳过它，新会话就永远
+    进不了 turn 表，LLM 也没东西可归纳。所以这里不再用 --fast；只在 LLM 关闭时
+    才加 --no-llm。
+    """
+    import config  # noqa: PLC0415
+    if (config.load().get("llm") or {}).get("enabled"):
+        return []
+    return ["--no-llm"]
+
+
 def cmd_install():
     import settings_schema as SS  # noqa: PLC0415
     sched = (SS.load().get("schedule") or {})
@@ -555,13 +568,13 @@ def cmd_install():
     os.makedirs(paths.LOGS, exist_ok=True)
     out_log = os.path.join(paths.LOGS, "launchd.out")
     err_log = os.path.join(paths.LOGS, "launchd.err")
+    extra = "".join(f"\n    <string>{a}</string>" for a in _pipeline_step_args())
     plist = f"""<?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0"><dict>
   <key>Label</key><string>{TASK_NAME}</string>
   <key>ProgramArguments</key><array><string>{PY}</string>
-    <string>{ROOT}/run/pipeline.py</string><string>--fast</string>
-    <string>--no-llm</string></array>
+    <string>{ROOT}/run/pipeline.py</string>{extra}</array>
   <key>WorkingDirectory</key><string>{ROOT}</string>
   <key>EnvironmentVariables</key><dict>
     <key>HOME</key><string>{os.path.expanduser("~")}</string>
@@ -593,7 +606,7 @@ def _install_windows(minutes):
     """Windows 用计划任务（schtasks）实现定时采集。"""
     pipeline = os.path.join(ROOT, "run", "pipeline.py")
     os.makedirs(paths.LOGS, exist_ok=True)
-    tr = f'"{PY}" "{pipeline}" --fast --no-llm'
+    tr = f'"{PY}" "{pipeline}"' + "".join(f" {a}" for a in _pipeline_step_args())
     r = subprocess.run(["schtasks", "/Create", "/F", "/SC", "MINUTE",
                         "/MO", str(minutes), "/TN", TASK_NAME, "/TR", tr],
                        capture_output=True, text=True)
