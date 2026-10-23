@@ -1,0 +1,33 @@
+# ---------- 运行时数据（绝不提交，含个人隐私） ----------
+store/
+config.json
+*.minime.zip
+run/probe_sessions.json
+
+# 本地日志 / 备份
+*.log
+*.db
+*.db-wal
+*.db-shm
+/tmp/
+
+# ---------- Python ----------
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.env
+.env.*
+*.pem
+*.key
+*.p12
+.pytest_cache/
+build/
+dist/
+*.egg-info/
+
+# ---------- macOS / 编辑器 ----------
+.DS_Store
+.idea/
+.vscode/
+*.swp

@@ -1,0 +1,48 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "minime"
+version = "0.1.0rc6"
+description = "个人知识库 / 决策分身：把工作轨迹沉淀成可检索、可追溯、可分享的个人知识库"
+readme = "README.md"
+requires-python = ">=3.10"
+license = { file = "LICENSE" }
+keywords = ["knowledge-base", "mcp", "personal-ai", "sqlite"]
+classifiers = [
+  "Programming Language :: Python :: 3",
+  "Operating System :: MacOS",
+  "Operating System :: Microsoft :: Windows",
+  "Operating System :: POSIX :: Linux",
+]
+dependencies = []
+
+[project.optional-dependencies]
+# 核心功能零第三方依赖；这三项按需安装（pipx install "minime[full]"）
+full = ["mcp", "cryptography", "numpy"]
+
+[project.scripts]
+minime = "minime_launcher:main"
+
+[tool.setuptools]
+py-modules = ["minime_launcher"]
+packages = [
+  "minime",
+  "minime.pipeline",
+  "minime.collector",
+  "minime.collector.adapters",
+  "minime.collector.adapters.trae",
+  "minime.collector.adapters.files",
+  "minime.collector.adapters.agents",
+  "minime.run",
+  "minime.web",
+  "minime.mcp_server",
+  "minime.docs",
+]
+# 代码目录保持原布局安装到 minime/ 下，运行时按相对路径找脚本与静态资源
+package-dir = { minime = "packaging/minime", "minime.pipeline" = "pipeline", "minime.collector" = "collector", "minime.collector.adapters" = "collector/adapters", "minime.collector.adapters.trae" = "collector/adapters/trae", "minime.collector.adapters.files" = "collector/adapters/files", "minime.collector.adapters.agents" = "collector/adapters/agents", "minime.run" = "run", "minime.web" = "web", "minime.mcp_server" = "mcp_server", "minime.docs" = "docs" }
+
+[tool.setuptools.package-data]
+"minime.web" = ["index.html"]
+"minime.docs" = ["brand/*.svg", "brand/*.png", "brand/*.ico"]

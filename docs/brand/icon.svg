@@ -1,0 +1,23 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="256" height="256" role="img" aria-label="minime">
+  <defs><linearGradient id="i" x1="0" y1="0" x2="0" y2="1">
+    <stop offset="0" stop-color="#EDBA74"/><stop offset="1" stop-color="#C98A3C"/>
+  </linearGradient></defs>
+  <rect width="64" height="64" rx="14" fill="#141517"/>
+  <defs><linearGradient id="i" x1="0" y1="0" x2="0" y2="1">
+    <stop offset="0" stop-color="#EDBA74"/><stop offset="1" stop-color="#C98A3C"/>
+  </linearGradient></defs>
+  <g fill="none" stroke="#EFEFF1" stroke-width="4" stroke-linecap="round">
+    <path d="M14 5 H9 A4 4 0 0 0 5 9 V55 A4 4 0 0 0 9 59 H14"/>
+    <path d="M44 5 H55 A4 4 0 0 1 59 9 V16"/>
+    <path d="M44 59 H55 A4 4 0 0 0 59 55 V48"/>
+  </g>
+  <g fill="#EFEFF1">
+    <rect x="14.8" y="17.8" width="4.4" height="4.4" rx="1.5"/>
+    <rect x="44.8" y="17.8" width="4.4" height="4.4" rx="1.5"/>
+    <rect x="15.4" y="30.4" width="3.2" height="3.2" rx="1.1"/>
+    <rect x="45.4" y="30.4" width="3.2" height="3.2" rx="1.1"/>
+    <rect x="14.8" y="41.8" width="4.4" height="4.4" rx="1.5"/>
+    <rect x="44.8" y="41.8" width="4.4" height="4.4" rx="1.5"/>
+  </g>
+  <rect x="25" y="25" width="14" height="14" rx="4.5" fill="url(#i)"/>
+</svg>

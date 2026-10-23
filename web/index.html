@@ -1,0 +1,2770 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>minime · 个人分身知识库</title>
+<link rel="icon" href="/favicon.svg" type="image/svg+xml">
+<link rel="alternate icon" href="/favicon-32.png" sizes="32x32">
+<link rel="apple-touch-icon" href="/icon-256.png">
+<script>
+  // 主题在首屏渲染前定好，避免闪一下；默认暖色浅色（长时间看更省眼）
+  try {
+    if (localStorage.getItem('minime.theme') !== 'dark')
+      document.documentElement.classList.add('light');
+  } catch (e) {
+    document.documentElement.classList.add('light');
+  }
+</script>
+<style>
+  /* ============================================================
+     设计系统：暖色专业工具
+     原则：暖褐/米色面、无发光无渐变、细边框、方角、只用文字层级表达结构
+     两套主题共用同一组语义变量：暖色深（默认） / 暖色浅（纸张感）
+     ============================================================ */
+  :root{
+    /* 面：中性炭灰（只带极轻微暖调，不再是棕色），靠边框而不是阴影分层 */
+    --bg:#141517;
+    --surface-1:#1B1C1F;
+    --surface-2:#232427;
+    --surface-3:#2C2D31;
+    /* 边框 */
+    --line:#303136;
+    --line-strong:#3F4046;
+    --line-hover:#51525A;
+    /* 文字 */
+    --fg:#EFEFF1;
+    --fg-2:#CFD0D4;
+    --fg-3:#A3A4AA;
+    --fg-4:#8E8F96;
+    /* 强调色：琥珀，只在选中/链接上出现，不铺满整个界面 */
+    --acc:#E0A458;
+    --acc-bg:#2B2C33;
+    --acc-fg-soft:#F0CC93;
+    /* 主操作按钮 */
+    --cta-bg:#E0A458; --cta-hover:#EDBA74; --cta-fg:#1E1508;
+    /* 语义色 */
+    --ok:#7EBE8A;
+    --warn:#D9B45C;
+    --bad:#D9776F;
+    /* 辅助面 */
+    --sel:#3B3D45;
+    --scroll:#3F4046;
+    --scroll-hover:#51525A;
+    --knob-on:#141517;
+    --mask:#000000C9;
+    --shadow-md:0 4px 16px #0007;
+    --shadow-lg:0 12px 40px #000B;
+    /* 知识类型标签：中性底上用有区分的色相 */
+    --k-decision:#C6A9D8; --k-decision-b:#544362;
+    --k-preference:#9FB6E0; --k-preference-b:#3D4A63;
+    --k-troubleshooting:#DE9A93; --k-troubleshooting-b:#5C3B38;
+    --k-pattern:#8FC49E; --k-pattern-b:#3B5243;
+    --k-fact:#A3A4AA; --k-fact-b:#3F4046;
+    --k-event:#D7BC73; --k-event-b:#564A2A;
+    --k-insight:#8CC0C6; --k-insight-b:#35504F;
+    /* 圆角：只保留 4 / 6 */
+    --r-sm:4px; --r-md:6px;
+    /* 动效：只做颜色过渡，不做位移与缩放 */
+    --t:120ms ease;
+    /* 让原生控件（复选框、滚动条、下拉）跟随主题 */
+    color-scheme: dark;
+  }
+  /* ---- 暖色浅主题：纸张感，低疲劳 ---- */
+  html.light{
+    --bg:#F7F2EA;
+    --surface-1:#FFFCF8;
+    --surface-2:#F3ECE2;
+    --surface-3:#EAE0D3;
+    --line:#E4D8C8;
+    --line-strong:#D0C0AB;
+    --line-hover:#B9A691;
+    --fg:#2A2119;
+    --fg-2:#4A3D31;
+    --fg-3:#6E6053;
+    --fg-4:#7A6B5A;
+    --acc:#A85E17;
+    --acc-bg:#F8EADA;
+    --acc-fg-soft:#8A4E12;
+    --cta-bg:#9E5617; --cta-hover:#87470F; --cta-fg:#FFFFFF;
+    --ok:#3F6630;
+    --warn:#8F6A14;
+    --bad:#B2453C;
+    --sel:#EBD7BE;
+    --scroll:#D0C0AB;
+    --scroll-hover:#B9A691;
+    --knob-on:#FFFFFF;
+    --mask:#4A3828A6;
+    --shadow-md:0 2px 10px #7A64471F;
+    --shadow-lg:0 12px 32px #7A644729;
+    --k-decision:#6B4A75; --k-decision-b:#DCCBE0;
+    --k-preference:#7A5A2E; --k-preference-b:#EBDCC4;
+    --k-troubleshooting:#8C4038; --k-troubleshooting-b:#F0D2CC;
+    --k-pattern:#4A5C33; --k-pattern-b:#DCE5CC;
+    --k-fact:#6B5D50; --k-fact-b:#E4DAD0;
+    --k-event:#7A6320; --k-event-b:#EFE3C4;
+    --k-insight:#33564F; --k-insight-b:#CFE0DD;
+    color-scheme: light;
+  }
+  *{box-sizing:border-box}
+  body{
+    margin:0;font:13px/1.6 -apple-system,BlinkMacSystemFont,"PingFang SC","Helvetica Neue",
+      "Microsoft YaHei",system-ui,sans-serif;
+    color:var(--fg);background:var(--bg);
+    -webkit-font-smoothing:antialiased;
+  }
+  ::selection{background:var(--sel);color:var(--fg)}
+  ::-webkit-scrollbar{width:11px;height:11px}
+  ::-webkit-scrollbar-thumb{background:var(--scroll);border-radius:6px;border:3px solid transparent;
+    background-clip:padding-box}
+  ::-webkit-scrollbar-thumb:hover{background:var(--scroll-hover);background-clip:padding-box}
+  ::-webkit-scrollbar-track{background:transparent}
+
+  /* ---------------- 顶栏 ---------------- */
+  header{
+    display:flex;align-items:center;gap:22px;padding:0 20px;height:48px;
+    background:var(--surface-1);border-bottom:1px solid var(--line);
+    position:sticky;top:0;z-index:20;
+  }
+  header h1{
+    font-size:13px;margin:0;font-weight:600;letter-spacing:0;color:var(--fg);
+    white-space:nowrap;display:flex;align-items:center;gap:7px;
+  }
+  .logo-mark{color:var(--fg-2);flex:none}
+  nav{display:flex;gap:1px;flex:1;min-width:0}
+  .nav-scroll{display:flex;gap:1px;flex:0 1 auto;min-width:0;overflow-x:auto;
+    scrollbar-width:none}
+  .nav-scroll::-webkit-scrollbar{display:none}
+  nav button{
+    background:transparent;border:0;color:var(--fg-3);padding:0 10px;height:30px;
+    border-radius:var(--r-sm);cursor:pointer;font:inherit;font-size:12.5px;
+    white-space:nowrap;transition:background var(--t),color var(--t);
+  }
+  nav button:hover{color:var(--fg);background:var(--surface-2)}
+  nav button.on{color:var(--fg);background:var(--surface-3)}
+  nav button:focus-visible{outline:1px solid var(--acc);outline-offset:1px}
+  /* 次要项默认收起，展开后在导航行内就地铺开 */
+  .nav-extra{display:none}
+  nav.more-open .nav-extra{display:contents}
+  nav button.nav-more{color:var(--fg-4);gap:4px}
+  nav button.nav-more:hover{color:var(--fg-2)}
+  nav button.nav-more .caret{font-size:8px;transition:transform var(--t)}
+  nav.more-open button.nav-more{color:var(--fg-2)}
+  nav.more-open button.nav-more .caret{transform:rotate(180deg)}
+
+  /* ---------------- 按钮：一律方角细边框，主操作靠实心填充区分 ---------------- */
+  button{
+    font:inherit;font-size:12px;line-height:1;font-weight:500;
+    display:inline-flex;align-items:center;justify-content:center;gap:6px;
+    padding:0 11px;height:28px;border-radius:var(--r-sm);cursor:pointer;
+    background:var(--surface-2);border:1px solid var(--line-strong);color:var(--fg-2);
+    transition:background var(--t),border-color var(--t),color var(--t);
+    white-space:nowrap;user-select:none;
+  }
+  button:hover{background:var(--surface-3);border-color:var(--line-hover);color:var(--fg)}
+  button:focus-visible{outline:1px solid var(--acc);outline-offset:1px}
+  button:disabled{opacity:.45;cursor:not-allowed}
+  button.primary{background:var(--cta-bg);border-color:var(--cta-bg);color:var(--cta-fg);
+    font-weight:600}
+  button.primary:hover{background:var(--cta-hover);border-color:var(--cta-hover);color:var(--cta-fg)}
+  button.danger{background:transparent;border-color:var(--line-strong);color:var(--bad)}
+  button.danger:hover{background:var(--bad);border-color:var(--bad);color:#fff}
+  button.ghost{background:transparent;border-color:transparent;color:var(--fg-3)}
+  button.ghost:hover{background:var(--surface-2);border-color:transparent;color:var(--fg)}
+  button.sm{height:24px;padding:0 9px;font-size:11.5px}
+  button.icon{width:28px;padding:0;font-size:13px}
+  .seg{display:inline-flex;border:1px solid var(--line-strong);border-radius:var(--r-sm);
+    overflow:hidden;background:var(--surface-2)}
+  .seg button{border:0;border-radius:0;background:transparent;height:26px;padding:0 10px;
+    font-size:11.5px;color:var(--fg-3)}
+  .seg button+button{border-left:1px solid var(--line-strong)}
+  .seg button.on{background:var(--surface-3);color:var(--fg);font-weight:600}
+  a{color:var(--acc);text-decoration:none}
+  a:hover{text-decoration:underline}
+
+  /* ---------------- 表单 ---------------- */
+  input[type=text],input[type=number],input[type=password],input[type=search],textarea,select{
+    background:var(--bg);border:1px solid var(--line-strong);color:var(--fg);
+    border-radius:var(--r-sm);padding:0 9px;font:inherit;font-size:12.5px;height:28px;
+    transition:border-color var(--t);width:auto;
+  }
+  textarea{padding:7px 9px;height:auto;line-height:1.6}
+  input:hover,textarea:hover,select:hover{border-color:var(--line-hover)}
+  input:focus,textarea:focus,select:focus{outline:none;border-color:var(--acc)}
+  input::placeholder,textarea::placeholder{color:var(--fg-4)}
+  input[type=checkbox]{width:14px;height:14px;accent-color:var(--acc);cursor:pointer;margin:0}
+  select{cursor:pointer;padding-right:24px;appearance:none;
+    background-image:linear-gradient(45deg,transparent 50%,var(--fg-3) 50%),
+                     linear-gradient(135deg,var(--fg-3) 50%,transparent 50%);
+    background-position:calc(100% - 13px) 12px, calc(100% - 9px) 12px;
+    background-size:4px 4px,4px 4px;background-repeat:no-repeat}
+
+  /* ---------------- 布局 ---------------- */
+  .stat{color:var(--fg-3);font-size:11.5px;display:flex;gap:16px;align-items:center;
+    font-variant-numeric:tabular-nums;white-space:nowrap}
+  .stat b{color:var(--fg-2);font-weight:600}
+  main{display:grid;grid-template-columns:248px minmax(0,1fr);height:calc(100vh - 48px)}
+  body.chat-mode main{grid-template-columns:1fr;padding:0 18px 14px}
+  body.chat-mode section{max-width:none;padding-left:0;padding-right:0}
+  body.chat-mode aside{display:none}
+  aside{border-right:1px solid var(--line);overflow:auto;padding:16px 14px;background:var(--bg)}
+  section{overflow:auto;padding:20px 24px 40px;max-width:1360px}
+  h2{font-size:15px;margin:0 0 3px;font-weight:600;letter-spacing:0;
+    display:flex;align-items:baseline;gap:8px;flex-wrap:wrap}
+  .tabs-hint{font-size:12px;color:var(--fg-3);font-weight:400}
+  .empty{color:var(--fg-3);text-align:center;padding:56px 0;font-size:13px}
+
+  /* ---------------- 后台任务横幅 ---------------- */
+  #jobbar:not(:empty){height:auto}
+  #jobbar:not(:empty) ~ main{height:calc(100vh - 88px)}
+  .jobbanner{display:flex;align-items:center;gap:12px;padding:7px 20px;
+    background:var(--surface-2);border-bottom:1px solid var(--line);font-size:12px;
+    color:var(--fg-2)}
+  .jobbanner .bar{flex:0 0 180px;margin:0;height:4px}
+  .jobbanner b{color:var(--fg)}
+
+  /* ---------------- 进度条：纯色，无渐变 ---------------- */
+  .bar{height:4px;background:var(--surface-3);border-radius:2px;overflow:hidden;margin-top:6px}
+  .bar i{display:block;height:100%;background:var(--fg-3);transition:width .4s ease}
+  .pbar{height:6px;background:var(--surface-3);border-radius:2px;overflow:hidden;margin:8px 0}
+  .pbar i{display:block;height:100%;background:var(--acc);transition:width .4s ease}
+
+  /* ---------------- 卡片：靠边框分层，无阴影无悬停位移 ---------------- */
+  .kpis{display:grid;grid-template-columns:repeat(auto-fill,minmax(156px,1fr));gap:1px;
+    margin-bottom:18px;background:var(--line);border:1px solid var(--line);
+    border-radius:var(--r-md);overflow:hidden}
+  .kpi{background:var(--surface-1);padding:12px 14px}
+  .kpi .kv{margin-top:2px}
+  .big{font-size:24px;font-weight:600;font-variant-numeric:tabular-nums;letter-spacing:-.3px;
+    line-height:1.25;color:var(--fg)}
+  .card{background:var(--surface-1);border:1px solid var(--line);border-radius:var(--r-md);
+    padding:14px 16px;margin-bottom:12px}
+  .card.hl{border-color:var(--line-hover)}
+  .card h3{margin:0 0 10px;font-size:13px;font-weight:600;
+    display:flex;align-items:baseline;gap:8px;flex-wrap:wrap}
+  .cards{display:grid;grid-template-columns:repeat(auto-fill,minmax(430px,1fr));gap:12px;align-items:start}
+  .cards .card{margin-bottom:0}
+  .grid2{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+  .jobrow{display:grid;grid-template-columns:110px 1fr 190px 150px;gap:12px;font-size:12px;
+    padding:7px 0;border-bottom:1px solid var(--line);align-items:center}
+  .srcrow{display:grid;grid-template-columns:130px 1fr;gap:12px;align-items:center;
+    margin-bottom:6px;font-size:12px}
+  .proj-row{display:grid;grid-template-columns:150px 1fr 46px;gap:12px;align-items:center;margin-bottom:9px}
+  .proj-row span:first-child{font-size:12px;color:var(--fg-2);overflow:hidden;
+    text-overflow:ellipsis;white-space:nowrap}
+  .kv{font-size:12px;color:var(--fg-3)} .kv b{color:var(--fg-2)}
+  .kvrow{display:grid;grid-template-columns:100px 1fr;gap:10px;font-size:12px;margin-bottom:5px}
+  .kvrow span:first-child{color:var(--fg-4)}
+  .score{font-variant-numeric:tabular-nums}
+  .pill{display:inline-block;padding:0 5px;border-radius:2px;font-size:10.5px;
+    border:1px solid var(--line-strong);color:var(--fg-3)}
+  .pill.warn{color:var(--warn);border-color:var(--warn)}
+  .dot{display:inline-block;width:6px;height:6px;border-radius:50%;margin-right:6px}
+
+  /* ---------------- 侧栏筛选 ---------------- */
+  .side-empty{padding:16px 2px}
+  .side-empty-t{font-size:11px;letter-spacing:.6px;color:var(--fg-3);
+    font-weight:600;margin-bottom:8px}
+  .dim{margin-bottom:10px;border-bottom:1px solid var(--line);padding-bottom:4px}
+  .dim:last-child{border-bottom:0}
+  .dim-head{display:flex;align-items:center;justify-content:space-between;width:100%;
+    background:none;border:0;height:auto;padding:6px 0;margin:0;text-align:left;
+    font-size:11px;letter-spacing:.6px;color:var(--fg-3);font-weight:600;cursor:pointer}
+  .dim-head:hover{color:var(--fg);background:none}
+  .dim.open .dim-head span:first-child{color:var(--acc)}
+  .dim-head .arrow{font-size:8px;color:var(--fg-4);transition:transform var(--t)}
+  .dim.open .dim-head .arrow{transform:rotate(90deg);color:var(--acc)}
+  .dim-body{display:none;padding:2px 0 8px}
+  .dim.open .dim-body{display:block}
+  .chip{display:inline-flex;align-items:center;gap:4px;padding:2px 7px;border-radius:var(--r-sm);
+    background:transparent;border:1px solid var(--line-strong);margin:0 4px 5px 0;
+    cursor:pointer;font-size:11.5px;color:var(--fg-2);
+    transition:background var(--t),border-color var(--t),color var(--t)}
+  .chip:hover{border-color:var(--line-hover);color:var(--fg)}
+  .chip.on{background:var(--acc-bg);color:var(--acc-fg-soft);border-color:var(--acc)}
+  .chip small{color:var(--fg-3);font-size:10.5px;margin-left:3px;
+    font-variant-numeric:tabular-nums}
+
+  /* ---------------- 搜索与筛选条 ---------------- */
+  .search{display:flex;gap:8px;margin-bottom:14px}
+  .search input[type=search]{flex:1;height:34px;font-size:13px}
+  .search input[type=search]::-webkit-search-cancel-button{-webkit-appearance:none;
+    appearance:none}
+  .search input[type=search]::-ms-clear{display:none}
+  .filterbar{display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin:-6px 0 14px}
+  .fbar-label{font-size:11px;color:var(--fg-3);letter-spacing:.5px;margin-right:2px}
+  .fchip{display:inline-flex;align-items:center;gap:6px;font-size:11.5px;
+    border:1px solid var(--line-strong);border-radius:var(--r-sm);padding:2px 4px 2px 8px;
+    color:var(--fg-2);background:var(--surface-2)}
+  .fchip button{width:16px;min-width:16px;height:16px;padding:0;font-size:11px;line-height:1;
+    background:transparent;border:0;color:var(--fg-3);border-radius:2px}
+  .fchip button:hover{background:var(--surface-3);color:var(--fg)}
+  .card-title{cursor:pointer}
+  .card-title:hover{color:var(--acc)}
+  .acts button.done{color:var(--fg-4);border-color:var(--line)}
+  .sens{font-size:10px;padding:0 4px;border-radius:2px;border:1px solid var(--line-strong);
+    color:var(--fg-4)}
+  .sens-private{color:var(--warn);border-color:var(--warn)}
+  .sens-internal{color:var(--fg-3)}
+
+  /* ---------------- 知识浏览 ---------------- */
+  .meta{font-size:11.5px;color:var(--fg-3);display:flex;gap:9px;flex-wrap:wrap;
+    align-items:center;margin-bottom:7px}
+  .tag{padding:1px 5px;border-radius:2px;font-size:10.5px;font-weight:600;
+    border:1px solid;background:transparent}
+  .k-decision{color:var(--k-decision);border-color:var(--k-decision-b)}
+  .k-preference{color:var(--k-preference);border-color:var(--k-preference-b)}
+  .k-troubleshooting{color:var(--k-troubleshooting);border-color:var(--k-troubleshooting-b)}
+  .k-pattern{color:var(--k-pattern);border-color:var(--k-pattern-b)}
+  .k-fact{color:var(--k-fact);border-color:var(--k-fact-b)}
+  .k-event{color:var(--k-event);border-color:var(--k-event-b)}
+  .k-insight{color:var(--k-insight);border-color:var(--k-insight-b)}
+  .body{white-space:pre-wrap;color:var(--fg-2);font-size:12.5px;max-height:66px;
+    overflow:hidden;position:relative;word-break:break-word;line-height:1.7}
+  .body::after{content:"";position:absolute;bottom:0;left:0;right:0;height:26px;
+    background:linear-gradient(transparent,var(--surface-1))}
+  .src{font-size:11px;color:var(--fg-3);margin-top:6px}
+  .acts{display:flex;gap:6px;margin-top:9px;flex-wrap:wrap;align-items:center}
+  .acts button.ok:hover{color:var(--ok);border-color:var(--ok)}
+  .acts button.no:hover{color:var(--bad);border-color:var(--bad)}
+  .acts button[data-ev="accepted"]{color:var(--ok)}
+  .taglist{margin-top:5px}
+  .taglist .chip{cursor:default;font-size:11px;color:var(--fg-3);border-color:var(--line)}
+
+  /* ---------------- 详情抽屉 ---------------- */
+  .drawer{position:fixed;right:0;top:48px;bottom:0;width:min(600px,94vw);
+    background:var(--surface-1);border-left:1px solid var(--line-strong);
+    padding:20px 22px;overflow:auto;z-index:30}
+  .drawer h3{margin:0 0 12px;font-size:15px;font-weight:600;padding-right:40px;line-height:1.45}
+  .drawer pre{white-space:pre-wrap;word-break:break-word;font:inherit;font-size:13px;
+    color:var(--fg-2);margin:0;line-height:1.75}
+  .drawer .close{position:absolute;right:14px;top:14px;background:transparent;
+    border:1px solid var(--line-strong);color:var(--fg-3);border-radius:var(--r-sm);
+    width:26px;height:26px;padding:0;cursor:pointer;font-size:13px}
+
+  /* ---------------- 对话 ---------------- */
+  .chat-wrap{display:grid;grid-template-columns:240px minmax(0,1fr);gap:12px;
+    height:calc(100vh - 96px)}
+  .chat-list{background:var(--surface-1);border:1px solid var(--line);border-radius:var(--r-md);
+    padding:8px;overflow:auto}
+  .chat-item{padding:7px 9px;border-radius:var(--r-sm);cursor:pointer;margin-bottom:1px;
+    font-size:12.5px;display:flex;align-items:center;gap:8px;color:var(--fg-2);
+    transition:background var(--t),color var(--t)}
+  .chat-item:hover{background:var(--surface-2);color:var(--fg)}
+  .chat-item.on{background:var(--acc-bg);color:var(--acc-fg-soft)}
+  .chat-item .t{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .chat-item .del{opacity:0;color:var(--fg-3);font-size:13px;line-height:1;padding:0 2px;
+    background:none;border:0;height:auto}
+  .chat-item:hover .del{opacity:1}
+  .chat-item .del:hover{color:var(--bad);background:none}
+  .chat-main{display:flex;flex-direction:column;min-height:0;background:var(--surface-1);
+    border:1px solid var(--line);border-radius:var(--r-md);overflow:hidden}
+  .chat-head{display:flex;align-items:center;gap:10px;padding:11px 16px;
+    border-bottom:1px solid var(--line)}
+  .chat-head .ttl{font-size:13px;font-weight:600;overflow:hidden;
+    text-overflow:ellipsis;white-space:nowrap}
+  .chat-body{flex:1;overflow:auto;padding:20px 22px;scroll-behavior:smooth}
+  .msg{display:flex;gap:10px;margin-bottom:18px;align-items:flex-start}
+  .msg .avatar{flex:0 0 auto;height:20px;padding:0 6px;border-radius:2px;
+    display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:600;
+    margin-top:2px;border:1px solid var(--line-strong);color:var(--fg-3)}
+  .msg.assistant .avatar{color:var(--fg-2);background:var(--surface-2)}
+  .msg .bubble{flex:1;min-width:0}
+  .msg .text{white-space:pre-wrap;word-break:break-word;font-size:13.5px;line-height:1.8;
+    color:var(--fg-2);max-width:76ch}
+  .msg.user .text{color:var(--fg)}
+  .msg .refs{margin-top:10px;display:flex;flex-direction:column;gap:1px;max-width:76ch;
+    border:1px solid var(--line);border-radius:var(--r-sm);overflow:hidden}
+  .msg .text code{font-family:ui-monospace,"SF Mono",Menlo,Consolas,monospace;font-size:12px;
+    background:var(--surface-2);border:1px solid var(--line-strong);border-radius:2px;
+    padding:0 4px;color:var(--acc-fg-soft)}
+  .msg .text strong{color:var(--fg);font-weight:600}
+  .md-h{font-weight:600;color:var(--fg);margin:10px 0 3px}
+  .md-li{padding-left:14px;text-indent:-14px;color:var(--fg-2)}
+  .md-li::before{content:"–";color:var(--fg-4);margin-right:6px}
+  .md-ol{padding-left:18px;text-indent:-18px}
+  .md-ol::before{content:"";}
+  .md-cite{color:var(--fg-3);font-size:11px;font-weight:600}
+  .ref{display:flex;gap:8px;align-items:baseline;font-size:11.5px;color:var(--fg-3);
+    background:var(--bg);padding:6px 10px;cursor:pointer;
+    border-bottom:1px solid var(--line);transition:background var(--t),color var(--t)}
+  .ref:last-child{border-bottom:0}
+  .ref:hover{background:var(--surface-2);color:var(--fg-2)}
+  .ref .n{color:var(--fg-3);font-weight:600}
+  .chat-foot{border-top:1px solid var(--line);padding:12px 16px;display:flex;gap:8px;
+    align-items:flex-end}
+  .chat-foot textarea{flex:1;resize:none;min-height:44px;max-height:170px;line-height:1.6;
+    padding:9px 11px;border-radius:var(--r-sm)}
+  .typing{display:inline-flex;gap:5px;align-items:center;color:var(--fg-3);font-size:12.5px}
+  .typing i{width:4px;height:4px;border-radius:50%;background:var(--fg-4);
+    animation:blink 1.2s infinite}
+  .typing i:nth-child(2){animation-delay:.2s}
+  .typing i:nth-child(3){animation-delay:.4s}
+  @keyframes blink{0%,80%,100%{opacity:.2}40%{opacity:1}}
+  .chat-empty{height:100%;display:flex;flex-direction:column;align-items:center;
+    justify-content:center;gap:14px;color:var(--fg-3);text-align:center;padding:20px}
+  .chat-empty .prompts{display:flex;gap:6px;flex-wrap:wrap;justify-content:center;
+    max-width:560px}
+
+  /* ---------------- 新手引导 ---------------- */
+  .guide{display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:12px;
+    margin-bottom:14px}
+  .guide .step{position:relative;background:var(--surface-1);border:1px solid var(--line);
+    border-radius:var(--r-md);padding:13px 15px}
+  .guide .step.done{border-color:var(--ok)}
+  .guide .step .no{position:absolute;right:13px;top:11px;font-size:11px;color:var(--fg-4)}
+  .guide .step h4{margin:0 0 5px;font-size:12.5px;font-weight:600;
+    display:flex;align-items:center;gap:6px}
+  .guide .step p{margin:0 0 8px;font-size:11.5px;color:var(--fg-3);line-height:1.65}
+  .guide .step.done h4::before{content:"✓";color:var(--ok);font-weight:600}
+  .banner{display:flex;gap:14px;align-items:center;padding:11px 15px;margin-bottom:14px;
+    border:1px solid var(--line-strong);background:var(--surface-1);
+    border-radius:var(--r-md);font-size:12.5px}
+  .banner .txt{flex:1;line-height:1.7;color:var(--fg-2)}
+
+  /* ---------------- 图谱 / 图例 ---------------- */
+  #graph{display:block;width:100%;height:calc(100vh - 48px);cursor:grab}
+  #graph.grabbing{cursor:grabbing}
+  #graph.pointing{cursor:pointer}
+  .legend{position:absolute;right:16px;bottom:14px;background:var(--surface-1);
+    border:1px solid var(--line-strong);border-radius:var(--r-md);padding:9px 12px;
+    font-size:11.5px;color:var(--fg-3);line-height:1.9}
+  .graph-wrap{position:relative;height:100%}
+  .gp{position:absolute;left:16px;top:14px;width:min(330px,48vw);
+    max-height:calc(100% - 28px);overflow:auto;background:var(--surface-1);
+    border:1px solid var(--line-strong);border-radius:var(--r-md);padding:12px 13px;z-index:6}
+  .gp[hidden]{display:none}
+  .gp-head{display:flex;align-items:center;gap:8px}
+  .gp-type{font-size:10.5px;color:var(--fg-3);border:1px solid var(--line-strong);
+    border-radius:2px;padding:1px 5px}
+  .gp-close{margin-left:auto;background:none;border:0;padding:0 2px;height:auto;
+    color:var(--fg-3);font-size:13px;line-height:1}
+  .gp-close:hover{background:none;color:var(--fg)}
+  .gp h3{margin:8px 0 5px;font-size:14.5px;font-weight:600;line-height:1.45;
+    word-break:break-word}
+  .gp-sec{margin:14px 0 4px;font-size:11px;color:var(--fg-4)}
+  .gp-rel{display:flex;align-items:center;gap:7px;width:100%;text-align:left;
+    background:none;border:0;border-radius:var(--r-sm);padding:5px 6px;height:auto;
+    color:var(--fg-2)}
+  .gp-rel:hover{background:var(--surface-2);color:var(--fg)}
+  .gp-rel .rel{flex:0 0 auto;font-size:11px;color:var(--fg-4)}
+  .gp-rel .nm{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
+    font-size:12.5px}
+  .gp-rel .wt{font-size:11px;color:var(--fg-4)}
+  .gp-atom{display:flex;align-items:flex-start;gap:7px;width:100%;text-align:left;
+    background:none;border:0;border-radius:var(--r-sm);padding:5px 6px;height:auto;
+    color:var(--fg-2);font-size:12.5px;line-height:1.5}
+  .gp-atom:hover{background:var(--surface-2);color:var(--fg)}
+  .gp-atom .tag{margin-top:1px;flex:0 0 auto}
+  .gp-more{width:100%;margin-top:8px;background:none;border:1px solid var(--line-strong);
+    color:var(--fg-2);height:auto;padding:6px 8px;font-size:12px;border-radius:var(--r-sm)}
+  .gp-more:hover{border-color:var(--line-hover);background:var(--surface-2)}
+
+  /* ---------------- 轻提示 / 弹层 / 骨架屏 ---------------- */
+  #toasts{position:fixed;right:18px;bottom:18px;z-index:60;display:flex;
+    flex-direction:column;gap:8px;align-items:flex-end}
+  .toast{background:var(--surface-3);border:1px solid var(--line-strong);
+    border-left:2px solid var(--fg-3);border-radius:var(--r-sm);padding:9px 13px;
+    font-size:12.5px;color:var(--fg-2);max-width:380px;box-shadow:var(--shadow-md);
+    transition:opacity 200ms}
+  .toast.ok{border-left-color:var(--ok)}
+  .toast.error{border-left-color:var(--bad)}
+  .toast.warn{border-left-color:var(--warn)}
+  .toast.out{opacity:0}
+  .modal-mask{position:fixed;inset:0;background:var(--mask);z-index:70;display:flex;
+    align-items:center;justify-content:center;padding:20px}
+  .modal{background:var(--surface-1);border:1px solid var(--line-strong);
+    border-radius:var(--r-md);padding:18px 20px;width:min(440px,100%);
+    box-shadow:var(--shadow-lg)}
+  .modal-t{font-size:13.5px;font-weight:600;margin-bottom:8px}
+  .modal-b{font-size:12.5px;color:var(--fg-3);line-height:1.7;margin-bottom:16px}
+  .modal-input{width:100%;margin-bottom:16px}
+  .modal-f{display:flex;justify-content:flex-end;gap:8px}
+  .skeleton{padding:6px 0}
+  .sk-bar{height:10px;background:var(--surface-2);border-radius:2px;margin-bottom:10px;
+    animation:skPulse 1.4s ease-in-out infinite}
+  .sk-bar.w40{width:40%} .sk-bar.w70{width:70%}
+  .sk-card{height:74px;background:var(--surface-1);border:1px solid var(--line);
+    border-radius:var(--r-md);margin-bottom:10px;animation:skPulse 1.4s ease-in-out infinite}
+  @keyframes skPulse{0%,100%{opacity:.5}50%{opacity:1}}
+
+  /* ---------------- 设置 ---------------- */
+  .cfg-row{display:grid;grid-template-columns:140px 1fr;gap:10px;align-items:center}
+  .cfg-label{color:var(--fg-3);font-size:12px;line-height:1.5;display:flex;gap:6px;
+    align-items:center;flex-wrap:wrap;min-width:0}
+  .cfg-bar{position:sticky;top:-20px;z-index:12;display:flex;align-items:center;gap:8px;
+    flex-wrap:wrap;padding:10px 0;margin:0 0 14px;background:var(--bg);
+    border-bottom:1px solid var(--line)}
+  .cfg-bar .spacer{flex:1}
+  .cfg-group{background:var(--surface-1);border:1px solid var(--line);
+    border-radius:var(--r-md);padding:13px 16px;margin-bottom:12px}
+  .cfg-group h3{margin:0 0 8px;font-size:13px;font-weight:600;display:flex;
+    align-items:baseline;gap:8px;flex-wrap:wrap}
+  .cfg-fields{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));
+    column-gap:28px}
+  .cfg-field{display:grid;grid-template-columns:148px minmax(0,1fr);column-gap:12px;
+    align-items:start;padding:8px 0;border-top:1px solid var(--line);min-width:0}
+  .cfg-field.span2{grid-column:1/-1}
+  .cfg-field .cfg-label{padding-top:6px}
+  .cfg-ctl{display:flex;align-items:center;gap:8px;min-width:0;min-height:28px}
+  .cfg-ctl input[type=text],.cfg-ctl input[type=number]{width:100%;max-width:520px}
+  .cfg-ctl input[type=checkbox]{width:15px;height:15px;flex:none}
+  .cfg-ctl textarea{width:100%;resize:vertical;min-height:56px;
+    font-family:ui-monospace,"SF Mono",Menlo,monospace;font-size:12px}
+  .cfg-hint{grid-column:2;font-size:11px;color:var(--fg-4);line-height:1.6;margin-top:3px}
+
+  /* ---------------- 资源包 ---------------- */
+  .pk-list{display:flex;flex-direction:column;gap:10px;margin-top:10px}
+  .pk-card{border:1px solid var(--line);border-radius:var(--r-md);padding:13px 15px;
+    background:var(--bg)}
+  .pk-head{display:flex;justify-content:space-between;gap:14px;align-items:flex-start}
+  .pk-title{font-size:13px;font-weight:600;display:flex;gap:7px;align-items:center;
+    flex-wrap:wrap}
+  .pk-badge{font-size:10.5px;padding:0 5px;border-radius:2px;font-weight:500;
+    background:transparent;color:var(--fg-3);border:1px solid var(--line-strong);
+    white-space:nowrap;line-height:16px}
+  .pk-badge.mine{color:var(--fg-2);border-color:var(--line-hover)}
+  .pk-badge.imported{color:var(--warn);border-color:var(--warn)}
+  .pk-badge.on{color:var(--acc-fg-soft);border-color:var(--acc);background:var(--acc-bg)}
+  .pk-badge.off{color:var(--fg-4)}
+  .pk-colls{margin-top:10px;display:flex;flex-direction:column;gap:1px;
+    border:1px solid var(--line);border-radius:var(--r-sm);overflow:hidden}
+  .pk-coll{display:flex;align-items:center;gap:10px;padding:7px 10px;
+    background:var(--surface-1);border-bottom:1px solid var(--line)}
+  .pk-coll:last-child{border-bottom:0}
+  .pk-coll:hover{background:var(--surface-2)}
+  .pk-coll-name{font-size:12.5px;color:var(--fg-2)}
+  /* 开关：方角，开启时填琥珀，不做发光 */
+  .pk-switch{position:relative;display:inline-block;width:28px;height:16px;flex:none}
+  /* input 铺满整个开关：视觉隐藏但可聚焦、可读屏、键盘空格能切换 */
+  .pk-switch input{position:absolute;inset:0;width:100%;height:100%;opacity:0;
+    margin:0;cursor:pointer}
+  .pk-slider{position:absolute;inset:0;background:var(--surface-3);border:1px solid var(--line-strong);
+    border-radius:3px;cursor:pointer;transition:background var(--t),border-color var(--t)}
+  .pk-slider:before{content:"";position:absolute;width:10px;height:10px;left:2px;top:2px;
+    background:var(--fg-4);border-radius:1px;transition:transform var(--t),background var(--t)}
+  .pk-switch input:checked + .pk-slider{background:var(--acc);border-color:var(--acc)}
+  .pk-switch input:checked + .pk-slider:before{transform:translateX(12px);background:var(--knob-on)}
+  .pk-switch input:focus-visible + .pk-slider{outline:1px solid var(--acc);outline-offset:2px}
+  .pk-chips{display:flex;flex-wrap:wrap;gap:6px}
+  .pk-chip{display:inline-flex;align-items:center;gap:5px;font-size:11.5px;padding:2px 8px;
+    border:1px solid var(--line-strong);border-radius:var(--r-sm);cursor:pointer;
+    color:var(--fg-2);background:transparent;transition:border-color var(--t),color var(--t),
+    background var(--t)}
+  .pk-chip:hover{border-color:var(--line-hover);color:var(--fg)}
+  .pk-chip:has(input:checked){border-color:var(--acc);background:var(--acc-bg);
+    color:var(--acc-fg-soft)}
+  .pk-chip input{accent-color:var(--acc)}
+  .pk-attrs{display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));
+    gap:8px;width:100%;align-items:start}
+  .pk-attr-group{border:1px solid var(--line);border-radius:var(--r-sm);padding:9px 11px;
+    background:var(--bg)}
+  .pk-attr-title{font-size:10.5px;color:var(--fg-3);margin-bottom:7px;letter-spacing:.5px;
+    font-weight:600}
+  .pk-attr{display:flex;align-items:center;gap:7px;font-size:12px;margin-bottom:3px;
+    cursor:pointer;color:var(--fg-2)}
+  .pk-attr:hover{color:var(--fg)}
+  .pk-attr input{accent-color:var(--acc)}
+  .pk-filter{display:flex;flex-direction:column;gap:8px}
+
+  /* ---------------- 表格 ---------------- */
+  table{width:100%;border-collapse:collapse;font-size:12px}
+  thead th{color:var(--fg-3);text-align:left;font-weight:600;font-size:11px;
+    padding:7px 6px;border-bottom:1px solid var(--line-strong)}
+  tbody td{padding:9px 6px;border-bottom:1px solid var(--line);vertical-align:top}
+  tbody tr:last-child td{border-bottom:0}
+  tbody tr:hover{background:var(--surface-2)}
+  .logrow{cursor:pointer}
+
+  /* ---------------- 响应式 ---------------- */
+  @media (max-width:1100px){
+    main{grid-template-columns:212px minmax(0,1fr)}
+    section{padding:18px}
+    .cfg-bar{top:-18px}
+    .cfg-fields{grid-template-columns:1fr}
+    /* 给导航腾空间：缩小间距与按钮内边距，避免主项被挤进滚动区 */
+    header{gap:14px}
+    nav button{padding:0 8px}
+  }
+  @media (max-width:860px){
+    main{grid-template-columns:1fr;height:auto}
+    aside{border-right:0;border-bottom:1px solid var(--line)}
+    .chat-wrap{grid-template-columns:1fr}
+    .chat-list{max-height:150px}
+    .grid2{grid-template-columns:1fr}
+    .cards{grid-template-columns:1fr}
+    .stat{display:none}
+  }
+  @media (prefers-reduced-motion:reduce){
+    *,*::before,*::after{animation-duration:.01ms !important;transition-duration:.01ms !important}
+  }
+</style>
+</head>
+<body>
+<header>
+  <h1><svg class="logo-mark" viewBox="0 0 64 64" width="18" height="18" aria-hidden="true">
+    <defs><linearGradient id="lg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="var(--acc)"/><stop offset="1" stop-color="var(--acc-fg-soft)"/>
+    </linearGradient></defs>
+    <g fill="none" stroke="currentColor" stroke-width="5" stroke-linecap="round">
+      <path d="M14 5 H9 A4 4 0 0 0 5 9 V55 A4 4 0 0 0 9 59 H14"/>
+      <path d="M44 5 H55 A4 4 0 0 1 59 9 V16"/>
+      <path d="M44 59 H55 A4 4 0 0 0 59 55 V48"/>
+    </g>
+    <g fill="currentColor">
+      <rect x="14.4" y="17.4" width="5.2" height="5.2" rx="1.8"/>
+      <rect x="44.4" y="17.4" width="5.2" height="5.2" rx="1.8"/>
+      <rect x="15.2" y="30.2" width="3.6" height="3.6" rx="1.2"/>
+      <rect x="45.2" y="30.2" width="3.6" height="3.6" rx="1.2"/>
+      <rect x="14.4" y="41.4" width="5.2" height="5.2" rx="1.8"/>
+      <rect x="44.4" y="41.4" width="5.2" height="5.2" rx="1.8"/>
+    </g>
+    <rect x="25" y="25" width="14" height="14" rx="4.5" fill="url(#lg)"/>
+  </svg>minime</h1>
+  <nav>
+    <div class="nav-scroll">
+      <button data-view="chat">对话</button>
+      <button data-view="atoms" class="on">知识浏览</button>
+      <button data-view="graph">知识图谱</button>
+      <button data-view="profile">能力画像</button>
+      <button data-view="packs">资源包</button>
+      <div class="nav-extra" id="nav-extra">
+        <button data-view="progress">处理进度</button>
+        <button data-view="workspaces">工作区</button>
+        <button data-view="collectors">采集源</button>
+        <button data-view="logs">运行日志</button>
+        <button data-view="settings">设置</button>
+        <button data-view="archive">归档</button>
+      </div>
+    </div>
+    <button class="nav-more" id="nav-more-btn" aria-expanded="false" aria-controls="nav-extra"
+      title="展开更多：处理进度、工作区、采集源、运行日志、设置、归档">
+      <span id="nav-more-t">更多</span><span class="caret" aria-hidden="true">▾</span>
+    </button>
+  </nav>
+  <div class="stat" id="stat"></div>
+  <button class="sm ghost" id="theme-btn" title="切换明暗">浅色</button>
+  <button class="sm ghost" id="help-btn" title="怎么用">? 怎么用</button>
+</header>
+<div id="jobbar"></div>
+<main>
+  <aside id="side"></aside>
+  <section id="view"></section>
+</main>
+<script>
+
+
+const $ = s => document.querySelector(s);
+const $$ = s => [...document.querySelectorAll(s)];
+const state = {view:'atoms', q:'', project:'', tech:'', facet:'', kind:'', status:'',
+  limit:40, sideOpen:'kind'};
+let FACETS = {};
+
+const KIND_CN = {decision:'决策',preference:'偏好',fact:'事实',troubleshooting:'排障',
+  pattern:'模式',event:'事件',insight:'洞察'};
+const DIM_CN = {project:'项目', tech:'技术', scene:'场景', topic:'主题', activity:'活动'};
+const STATE_CN = {active:'正常', dormant:'已降权', superseded:'已取代', archived:'已归档'};
+const FB_CN = {accepted:'已采用', cited:'已引用', rejected:'已标记不相关',
+  verified:'已核实', corrected:'已纠正'};
+const VIEW_CN = {chat:'对话', progress:'处理进度', atoms:'知识浏览', graph:'知识图谱',
+  profile:'能力画像', workspaces:'工作区', collectors:'采集源', packs:'资源包',
+  logs:'运行日志', settings:'设置', archive:'归档'};
+
+// 统一请求：网络异常/非 2xx 都转成 {error}，调用方只处理一种形态
+async function get(url){
+  try {
+    const r = await fetch(url);
+    const j = await r.json().catch(() => ({}));
+    if (!r.ok && !j.error) j.error = `HTTP ${r.status}`;
+    return j;
+  } catch (e) {
+    return {error: '面板连接中断，请确认 minime web 仍在运行'};
+  }
+}
+async function post(url, body){
+  try {
+    const r = await fetch(url, {method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify(body)});
+    const j = await r.json().catch(() => ({}));
+    if (!r.ok && !j.error) j.error = `HTTP ${r.status}`;
+    return j;
+  } catch (e) {
+    return {error: '面板连接中断，请确认 minime web 仍在运行'};
+  }
+}
+
+function fmtN(n){ return n>=1e6 ? (n/1e6).toFixed(1)+'M' : n>=1e3 ? (n/1e3).toFixed(1)+'k' : n; }
+function fmtT(ts){ return ts ? new Date(ts*1000).toLocaleString('zh-CN',{month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit'}) : '—'; }
+function fmtSize(b){
+  if (b >= 1024**3) return (b/1024**3).toFixed(2)+' GB';
+  if (b >= 1024**2) return (b/1024**2).toFixed(2)+' MB';
+  if (b >= 1024) return (b/1024).toFixed(0)+' KB';
+  return b+' B';
+}
+function fmtDur(s){
+  if (s == null) return '—';
+  if (s < 60) return `${Math.round(s)} 秒`;
+  if (s < 3600) return `${Math.round(s/60)} 分钟`;
+  if (s < 86400) return `${(s/3600).toFixed(s % 3600 ? 1 : 0)} 小时`;
+  return `${(s/86400).toFixed(s % 86400 ? 1 : 0)} 天`;
+}
+
+// ---------------- 主题：暖色深 / 暖色浅，切换写入 localStorage
+function isLight(){ return document.documentElement.classList.contains('light'); }
+function syncThemeBtn(){
+  const b = $('#theme-btn');
+  if (b) b.textContent = isLight() ? '深色' : '浅色';
+}
+function setTheme(light){
+  document.documentElement.classList.toggle('light', light);
+  try { localStorage.setItem('minime.theme', light ? 'light' : 'dark'); } catch (e) {}
+  syncThemeBtn();
+  if (state.view === 'graph') routeView();   // 图谱是 canvas，靠重绘跟随主题
+  toast(light ? '已切到浅色' : '已切到深色', 'ok');
+}
+// canvas 取不到 CSS 变量，这里手动读一次
+function cssVar(name){
+  return getComputedStyle(document.body).getPropertyValue(name).trim();
+}
+
+// ---------------- 轻提示：替代 alert，右下角堆叠，3.4 秒自散
+function toast(msg, kind='info'){
+  let box = $('#toasts');
+  if (!box){ box = document.createElement('div'); box.id = 'toasts'; document.body.appendChild(box); }
+  const t = document.createElement('div');
+  t.className = 'toast ' + kind;
+  t.textContent = msg;
+  box.appendChild(t);
+  setTimeout(() => { t.classList.add('out'); setTimeout(() => t.remove(), 200); }, 3400);
+}
+
+// ---------------- 确认弹层：替代 confirm，支持危险操作与补充说明
+function confirmBox({title, text='', ok='确定', danger=false}){
+  return new Promise(resolve => {
+    const wrap = document.createElement('div');
+    wrap.className = 'modal-mask';
+    wrap.innerHTML = `<div class="modal" role="dialog" aria-modal="true">
+      <div class="modal-t">${esc(title)}</div>
+      ${text ? `<div class="modal-b">${text}</div>` : ''}
+      <div class="modal-f">
+        <button data-no>取消</button>
+        <button class="${danger?'danger':'primary'}" data-yes>${esc(ok)}</button>
+      </div></div>`;
+    document.body.appendChild(wrap);
+    const done = v => { wrap.remove(); document.removeEventListener('keydown', key); resolve(v); };
+    const key = e => { if (e.key === 'Escape') done(false); };
+    document.addEventListener('keydown', key);
+    wrap.querySelector('[data-no]').onclick = () => done(false);
+    wrap.querySelector('[data-yes]').onclick = () => done(true);
+    wrap.onclick = e => { if (e.target === wrap) done(false); };
+    wrap.querySelector('[data-yes]').focus();
+  });
+}
+
+// ---------------- 行内输入弹层：替代 prompt
+function promptBox({title, value='', placeholder='', ok='确定'}){
+  return new Promise(resolve => {
+    const wrap = document.createElement('div');
+    wrap.className = 'modal-mask';
+    wrap.innerHTML = `<div class="modal" role="dialog" aria-modal="true">
+      <div class="modal-t">${esc(title)}</div>
+      <input type="text" class="modal-input" value="${esc(value)}" placeholder="${esc(placeholder)}">
+      <div class="modal-f"><button data-no>取消</button>
+        <button class="primary" data-yes>${esc(ok)}</button></div></div>`;
+    document.body.appendChild(wrap);
+    const inp = wrap.querySelector('.modal-input');
+    const done = v => { wrap.remove(); document.removeEventListener('keydown', key); resolve(v); };
+    const key = e => { if (e.key === 'Escape') done(null); };
+    document.addEventListener('keydown', key);
+    inp.onkeydown = e => { if (e.key === 'Enter'){ e.preventDefault(); done(inp.value.trim() || null); } };
+    wrap.querySelector('[data-no]').onclick = () => done(null);
+    wrap.querySelector('[data-yes]').onclick = () => done(inp.value.trim() || null);
+    wrap.onclick = e => { if (e.target === wrap) done(null); };
+    inp.focus(); inp.select();
+  });
+}
+
+// ---------------- 按钮忙态：同一按钮重复点击不会发两次请求
+async function withBusy(btn, busyText, fn){
+  if (!btn || btn.dataset.busy) return;
+  const old = btn.textContent;
+  btn.dataset.busy = '1';
+  btn.disabled = true;
+  btn.textContent = busyText;
+  try { return await fn(); }
+  finally {
+    btn.disabled = false;
+    btn.textContent = old;
+    delete btn.dataset.busy;
+  }
+}
+
+// ---------------- 视图骨架：加载态 / 错误态
+function viewLoading(msg='加载中…'){
+  const v = $('#view');
+  if (v) v.innerHTML = `<div class="skeleton">
+    <div class="sk-bar w40"></div><div class="sk-bar w70"></div>
+    <div class="sk-card"></div><div class="sk-card"></div><div class="sk-card"></div>
+    <div class="kv" style="margin-top:10px">${esc(msg)}</div></div>`;
+}
+function viewError(e, retry){
+  const v = $('#view');
+  if (!v) return;
+  v.innerHTML = `<div class="empty">
+    <div style="color:var(--bad);margin-bottom:6px">加载失败</div>
+    <div class="kv">${esc(e && e.message ? e.message : e)}</div>
+    ${retry ? `<div class="acts" style="justify-content:center;margin-top:12px">
+      <button id="view-retry">重试</button></div>` : ''}</div>`;
+  if (retry && $('#view-retry')) $('#view-retry').onclick = () => retry();
+}
+
+// ---------------- URL 状态：筛选条件可分享、刷新保留、前进后退可用
+function syncURL(){
+  const p = new URLSearchParams();
+  if (state.view !== 'atoms') p.set('view', state.view);
+  if (state.view === 'chat'){ if (CHAT.sid) p.set('session', CHAT.sid); }
+  else for (const k of ['q','project','tech','facet','kind','status']) if (state[k]) p.set(k, state[k]);
+  const s = p.toString();
+  const next = s ? '?' + s : location.pathname;
+  const st = {limit: state.limit};
+  if (next === location.pathname + location.search) {
+    history.replaceState(st, '', next);
+    return;
+  }
+  history.pushState(st, '', next);
+}
+function readURL(){
+  const p = new URLSearchParams(location.search);
+  state.view = p.get('view') || 'atoms';
+  state.q = p.get('q') || '';
+  state.project = p.get('project') || '';
+  state.tech = p.get('tech') || '';
+  state.facet = p.get('facet') || '';
+  state.kind = p.get('kind') || '';
+  state.status = p.get('status') || '';
+  // 后退回来时恢复「当时加载到第几条」，不然会跳回第一屏
+  state.limit = (history.state && history.state.limit) || 40;
+  CHAT.sid = p.get('session') || CHAT.sid;
+}
+// 浏览器后退/前进：按 URL 重画当前视图
+window.addEventListener('popstate', () => {
+  const prev = state.view;
+  readURL();
+  closeDrawers();
+  if (state.view !== prev) renderView(); else { renderSide(); routeView(); }
+});
+
+// ---------------- 后台任务：顶栏横幅 + 轮询
+let JOBS = [];
+function renderJobBar(){
+  const running = JOBS.filter(j => j.status === 'running');
+  const el = $('#jobbar');
+  if (!running.length){ el.innerHTML = ''; return; }
+  el.innerHTML = running.map(j => {
+    const pct = j.total ? Math.round(j.done/j.total*100) : null;
+    return `<div class="jobbanner">
+      <b>${esc(JOB_CN[j.kind]||j.kind)}</b>
+      <span class="kv">${esc(j.message||'进行中')}</span>
+      ${pct!=null?`<div class="bar"><i style="width:${pct}%"></i></div><span class="score">${j.done}/${j.total}</span>`:''}
+      <span class="kv">${fmtDur(j.elapsed_s)}</span>
+      <button class="sm danger" data-cancel="${esc(j.job_id)}">停止</button>
+    </div>`;
+  }).join('');
+  el.querySelectorAll('[data-cancel]').forEach(b => b.onclick = async () => {
+    // 先改文案再发请求：避免请求期间轮询把按钮重绘回原样
+    b.disabled = true;
+    b.textContent = '停止中…';
+    const r = await post('/api/job', {action:'cancel', job_id:b.dataset.cancel});
+    if (r.error){ toast(r.error, 'error'); pollJobs(); return; }
+    toast('已请求停止，当前条目完成后退出', 'warn');
+    pollJobs();
+  });
+}
+const JOB_CN = {llm:'LLM 归纳', collect:'采集', pipeline:'流水线'};
+const JOB_ST_CN = {ok:'完成', running:'进行中', cancelled:'已停止', error:'失败'};
+const COL_ST_CN = {ok:'正常', not_due:'未到时间', unavailable:'不可用', error:'失败'};
+
+async function pollJobs(){
+  try {
+    const d = await get('/api/job?limit=8');
+    JOBS = d.jobs || [];
+    renderJobBar();
+    // 任务结束后要把结果落到进度页/任务列表上，否则用户得手动刷新才看到 cancelled
+    if (state.view === 'progress' && !typingInView()) loadProgress(true);
+  } catch(e){ /* 面板重启时忽略 */ }
+}
+setInterval(pollJobs, 2500);
+
+async function startJob(action, extra){
+  const r = await post('/api/progress', {action, ...(extra||{})});
+  if (r.error) toast(r.error, 'error');
+  else if (r.reused) toast('已有同类任务在执行，当前显示其进度', 'warn');
+  else toast('后台任务已提交，进度显示在顶部', 'ok');
+  pollJobs();
+  return r;
+}
+
+// ---------------- 处理进度
+async function loadProgress(silent){
+  const d = await get('/api/progress');
+  const view = $('#view');
+  const keepScroll = silent ? view.scrollTop : 0;
+  const jobs = d.jobs || [];
+  const kpi = (label, value, hint) => `<div class="kpi">
+    <div class="kv">${label}</div><div class="big">${value}</div>
+    ${hint?`<div class="kv">${hint}</div>`:''}</div>`;
+  const srcRows = Object.entries(d.by_source||{}).map(([k,v]) =>
+    `<div class="srcrow"><span>${esc(SOURCE_CN[k]||k)}</span>
+      <div class="bar" style="margin:0"><i style="width:${v/Math.max(1,...Object.values(d.by_source))*100}%"></i></div></div>
+      <div class="kv" style="margin:-4px 0 6px;text-align:right">${v}</div>`).join('');
+  const kindRows = Object.entries(d.by_kind||{}).map(([k,v]) =>
+    `<span class="tag k-${k}" style="margin-right:6px">${KIND_CN[k]||k} ${v}</span>`).join('');
+  const jobRows = jobs.length ? jobs.map(j => {
+    const st = j.status;
+    const color = st==='ok'?'var(--ok)':st==='running'?'var(--acc)':st==='cancelled'?'var(--warn)':'var(--bad)';
+    return `<div class="jobrow">
+      <span style="color:${color}">● ${JOB_ST_CN[st]||st}</span>
+      <span><b>${esc(JOB_CN[j.kind]||j.kind)}</b> <span class="kv" title="${esc(j.message||'')}">${esc((j.message||'').slice(0,120))}${(j.message||'').length>120?'…':''}</span></span>
+      <span class="kv">${j.total?`${j.done}/${j.total} · `:''}${fmtDur(j.elapsed_s)}</span>
+      <span class="kv">${fmtT(j.started_at)}</span></div>`;
+  }).join('') : '<div class="kv">还没有后台任务记录</div>';
+  const collecting = (d.collect||[]).map(c => {
+    const ok = c.last_status === 'ok';
+    return `<div class="srcrow"><span>${ok?'✓':'!'} ${esc(c.label||c.adapter)}</span>
+      <span class="kv">${COL_ST_CN[c.last_status]||c.last_status||'未运行'} · ${fmtT(c.last_run)}
+      ${c.fails?` · 失败 ${c.fails} 次`:''}</span></div>`;
+  }).join('');
+  // 三步引导：判断走到哪一步了，直接告诉用户下一步点哪
+  const step1 = (d.collect||[]).some(c => c.last_status === 'ok');
+  const step2 = d.atoms > 0;
+  const step3 = d.llm_atoms > 0 && d.pending < d.candidates;
+  const stepHTML = (done, no, title, desc, btnId, btnText) => `
+    <div class="step ${done?'done':''}">
+      <span class="no">${done?'完成':no}</span>
+      <h4>${title}</h4><p>${desc}</p>
+      ${btnId ? `<button class="${done?'sm':'primary sm'}" id="${btnId}" ${done?'':'data-todo="1"'}>${btnText}</button>` : ''}
+    </div>`;
+
+  view.innerHTML = `<h2>处理进度 <span class="kv">刷新于 ${fmtT(d.generated_at)}</span>
+    <span class="tabs-hint">按 ① 采集、② 清洗、③ 归纳依次执行；② 完成后即可在「对话」中提问，③ 提升回答质量</span></h2>
+    <div class="guide">
+      ${stepHTML(step1, '①', '采集', `采集 Trae 会话、记忆与本地目录；共 ${(d.collect||[]).length} 个采集源。`,
+                 'g-collect', step1 ? '再采一次' : '开始采集')}
+      ${stepHTML(step2, '②', '清洗成知识', `拆分为可检索的知识条目并自动打标签；当前 ${d.atoms} 条。`,
+                 'g-normalize', step2 ? '重新清洗' : '开始清洗')}
+      ${stepHTML(step3, '③', 'LLM 归纳', `提炼决策依据与经验教训；待处理 ${d.pending} 轮。`,
+                 'g-llm', d.pending ? `归纳一批（上限 ${d.per_run} 轮；待处理 ${d.pending} 轮）` : '已全部归纳')}
+    </div>
+    ${step2 ? `<div class="banner">
+      <span class="txt"><b>下一步：在「对话」中提问。</b>
+        回答仅依据知识库并标注来源；点击来源可查看原文。若结果不准确，可回到本页补充归纳。</span>
+      <button class="primary" id="goto-chat">去对话 →</button></div>` : ''}
+    <div class="kpis">
+      ${kpi('LLM 归纳进度', d.percent+'%', d.enabled?`${d.processed} / ${d.candidates} 轮已处理`:'未启用')}
+      ${kpi('待处理', d.pending, d.pending?'有实质改动的轮次':'已全部处理')}
+      ${kpi('归纳出新知识', d.llm_atoms, '模型提炼的决策/偏好/教训')}
+      ${kpi('知识库总量', d.atoms, '含规则抽取与 LLM 归纳')}
+    </div>
+    <div class="card">
+      <h3>LLM 归纳 <span class="kv">${d.enabled?esc(d.model||''):'未启用'} · 每批上限 ${d.per_run} 轮</span></h3>
+      <div class="pbar"><i style="width:${d.percent}%"></i></div>
+      <div class="kv">快照共 ${d.turns} 轮，其中 ${d.candidates} 轮有实质改动（改动 ≥ 5 行或新增 ≥ 2 个文件）。
+        已归纳 ${d.processed} 轮，其中 ${d.processed_with_atoms} 轮产出了新知识。
+        ${d.last_processed_at?`最近一次：${fmtT(d.last_processed_at)}`:''}</div>
+      <div class="acts" style="margin-top:10px">
+        <button class="primary" id="run-llm">立即归纳一批</button>
+        <button id="run-llm-all" ${d.pending?'':'disabled'}>归纳全部${d.pending?`（${d.pending} 轮）`:''}</button>
+        <button id="run-full">更新知识库（采集 → 索引 → 清洗）</button>
+        ${d.enabled?'':'<span class="kv">请在「设置」中启用「LLM 归纳」后再执行</span>'}
+      </div>
+      <div class="kv" style="margin-top:6px">归纳全部一次性处理所有待处理轮次，单轮约 40 秒，耗时较长，可在顶栏随时停止。命令行：minime llm --run 20 / minime llm --all</div>
+    </div>
+    <div class="grid2">
+      <div class="card"><h3>知识来源分布</h3><div style="margin-top:8px">${srcRows||'<div class="kv">暂无</div>'}</div></div>
+      <div class="card"><h3>知识类型</h3><div class="taglist" style="margin-top:8px">${kindRows||'<div class="kv">暂无</div>'}</div>
+        <h3 style="margin-top:14px">采集源最近一次</h3><div style="margin-top:8px">${collecting}</div></div>
+    </div>
+    <div class="card"><h3>后台任务</h3><div style="margin-top:6px">${jobRows}</div></div>`;
+  view.scrollTop = keepScroll;
+  // 提交后台任务：按钮进忙态，提交后立刻刷新一次让横幅出现
+  const submit = (sel, action, extra, delay) => {
+    const b = $(sel);
+    if (!b) return;
+    b.onclick = () => withBusy(b, '已提交…', async () => {
+      await startJob(action, extra);
+      setTimeout(() => loadProgress(), delay);
+    });
+  };
+  submit('#run-llm', 'llm', {limit: d.per_run}, 800);
+  submit('#run-full', 'pipeline', {steps:['collect','index','normalize']}, 800);
+  submit('#g-collect', 'pipeline', {steps:['collect','index']}, 1200);
+  submit('#g-normalize', 'pipeline', {steps:['normalize']}, 1200);
+  submit('#g-llm', 'llm', {limit: d.per_run}, 800);
+  const all = $('#run-llm-all');
+  if (all && d.pending) all.onclick = async () => {
+    const ok = await confirmBox({
+      title: `归纳全部待处理轮次？`,
+      text: `将一次性处理所有 <b>${d.pending}</b> 个待处理轮次，单轮约 40 秒，耗时较长；可随时在顶栏「停止」。`,
+      ok: '开始归纳'});
+    if (!ok) return;
+    withBusy(all, '已提交…', async () => {
+      await startJob('llm', {limit: 0});
+      setTimeout(() => loadProgress(), 800);
+    });
+  };
+  if ($('#goto-chat')) $('#goto-chat').onclick = () => {
+    state.view = 'chat'; syncURL(); renderView();
+  };
+}
+const SOURCE_CN = {local_doc:'本地文档', snapshot_turn:'会话快照', trae_memory:'Trae 记忆',
+  llm_enrich:'LLM 归纳', obsidian:'Obsidian', cloud_conversation:'云端会话',
+  workspace_index:'工作区索引', file_history:'文件历史',
+  workbuddy_session:'WorkBuddy 会话', workbuddy_memory:'WorkBuddy 记忆',
+  qoder_session:'Qoder 会话', doubao_conversation:'豆包会话'};
+const LV_CN = {info:'普通', warn:'警告', error:'错误'};
+
+async function loadStats(){
+  const s = await get('/api/stats');
+  $('#stat').innerHTML =
+    `<span>知识 <b>${s.atoms}</b></span><span>实体 <b>${s.entities}</b></span>` +
+    `<span>轨迹 <b>${s.turns}</b> 轮 / <b>${s.file_changes}</b> 文件</span>` +
+    `<span>归档 <b>${fmtSize(s.raw_bytes)}</b></span>`;
+}
+
+function renderSide(){
+  const side = $('#side');
+  if (state.view === 'graph' || state.view === 'profile' || state.view === 'archive'
+      || state.view === 'workspaces' || state.view === 'settings'
+      || state.view === 'collectors' || state.view === 'packs'
+      || state.view === 'logs' || state.view === 'progress' || state.view === 'chat'){
+    side.innerHTML = `<div class="side-empty">
+      <div class="side-empty-t">${esc(VIEW_CN[state.view] || '当前视图')}</div>
+      <div class="kv">知识库共 <b id="sideTotal">-</b> 条 · 标签筛选位于「知识浏览」</div>
+    </div>`;
+    get('/api/stats').then(s => { const e = $('#sideTotal'); if(e) e.textContent = s.atoms; });
+    return;
+  }
+  const dims = ['project','tech','scene','topic','activity'];
+  const groups = [{
+    key: 'kind', label: '知识类型',
+    chips: Object.entries(KIND_CN).map(([k, cn]) =>
+      `<span class="chip ${state.kind===k?'on':''}" data-kind="${k}">${cn}</span>`).join(''),
+  }];
+  for (const d of dims){
+    const items = FACETS[d] || [];
+    if (!items.length) continue;
+    const isOn = v => (d === 'project' || d === 'tech')
+      ? state[d] === v : state.facet === `${d}:${v}`;
+    groups.push({
+      key: d, label: DIM_CN[d] || d,
+      chips: items.slice(0, 18).map(x =>
+        `<span class="chip ${isOn(x.value)?'on':''}" data-dim="${d}" data-val="${x.value.replace(/"/g,'&quot;')}">${x.value}<small>${x.count}</small></span>`).join(''),
+    });
+  }
+  groups.push({
+    key: 'status', label: '状态',
+    chips: Object.entries(STATE_CN).map(([k, cn]) =>
+      `<span class="chip ${(state.status||'active')===k?'on':''}" data-status="${k}">${cn}</span>`).join(''),
+  });
+  const open = state.sideOpen;
+  side.innerHTML = groups.map(g => `
+    <div class="dim ${open===g.key?'open':''}">
+      <button class="dim-head" data-group="${g.key}" aria-expanded="${open===g.key}">
+        <span>${g.label}</span><span class="arrow">▶</span>
+      </button>
+      <div class="dim-body">${g.chips}</div>
+    </div>`).join('');
+  // 手风琴：同一时间只展开一组，默认展开「知识类型」
+  side.querySelectorAll('.dim-head').forEach(b => b.onclick = () => {
+    state.sideOpen = state.sideOpen === b.dataset.group ? '' : b.dataset.group;
+    const top = side.scrollTop;
+    renderSide();
+    side.scrollTop = top;
+  });
+  side.querySelectorAll('.chip').forEach(c => c.onclick = () => {
+    if (c.dataset.status !== undefined){
+      // 「正常」不加筛选，其余状态按需切换
+      const v = c.dataset.status;
+      state.status = (v === 'active' || state.status === v) ? '' : v;
+    } else if (c.dataset.kind !== undefined){
+      state.kind = state.kind === c.dataset.kind ? '' : c.dataset.kind;
+    } else {
+      const d = c.dataset.dim, v = c.dataset.val;
+      if (d === 'project' || d === 'tech'){
+        state[d] = state[d] === v ? '' : v;
+      } else {
+        const f = `${d}:${v}`;
+        state.facet = state.facet === f ? '' : f;
+      }
+    }
+    state.limit = 40;
+    renderSide();
+    syncURL();
+    loadAtoms().catch(e => viewError(e, loadAtoms));
+  });
+}
+
+let ATOMS = [];
+let ATOMS_DONE = false;
+let ATOMS_SEARCH_TIMER = null;
+
+async function loadAtoms(append=false){
+  const p = new URLSearchParams();
+  if (state.q) p.set('q', state.q);
+  if (state.project) p.set('project', state.project);
+  if (state.tech) p.set('tech', state.tech);
+  if (state.facet) p.set('facet', state.facet);
+  if (state.kind) p.set('kind', state.kind);
+  if (state.status) p.set('state', state.status);
+  p.set('limit', state.limit);
+  const d = await get('/api/atoms?' + p);
+  if (d.error) return viewError(d.error, () => loadAtoms(append));
+  const prev = append ? ATOMS.length : 0;
+  ATOMS = append ? ATOMS.concat(d.items) : d.items;
+  ATOMS_DONE = d.items.length < state.limit || (d.matched ?? d.count) <= ATOMS.length;
+  const v = $('#view');
+  const matched = d.matched ?? d.count;
+  const chips = [
+    state.q && ['搜索', state.q, 'q'],
+    state.project && ['项目', state.project, 'project'],
+    state.tech && ['技术', state.tech, 'tech'],
+    state.facet && ['标签', facetLabel(state.facet), 'facet'],
+    state.kind && ['类型', KIND_CN[state.kind] || state.kind, 'kind'],
+    state.status && ['状态', STATE_CN[state.status] || state.status, 'status'],
+  ].filter(Boolean);
+  const stateNote = state.status ? `<div class="kv" style="margin:-2px 0 10px">当前只显示「${STATE_CN[state.status]||state.status}」知识：${
+    state.status === 'dormant' ? '降权条目仍会在正常命中不足时被召回；点「恢复」可立即回到正常检索。'
+    : state.status === 'archived' ? '归档条目不参与检索；点「恢复」可重新启用。'
+    : '已取代条目保留用于追溯；点「恢复」可重新启用。'}</div>` : '';
+  const head = `<h2>知识浏览 <span class="tabs-hint">「详情」查看全文、来源与评分；「采用 / 引用」提高后续检索权重，「不相关」降低权重，连续多次降权且可恢复</span></h2>
+    <div class="search">
+      <input type="search" id="q" placeholder="搜索标题或正文…" value="${esc(state.q)}" autocomplete="off">
+      ${state.q ? '<button class="ghost" id="q-clear" title="清空搜索">清空</button>' : ''}
+      <span class="kv" style="white-space:nowrap;align-self:center">命中 <b>${matched}</b> / 全库 ${d.total_atoms}</span>
+    </div>
+    ${chips.length ? `<div class="filterbar"><span class="fbar-label">筛选</span>${chips.map(([k, v, key]) =>
+      `<span class="fchip">${esc(k)}：${esc(v)}<button data-unset="${key}" title="移除">×</button></span>`).join('')}
+      <span class="kv">命中 ${matched} 条${matched === 0 ? '（条件过严，可移除一项）' : ''}</span>
+      <button class="sm ghost" id="clear-flt">全部清空</button></div>` : ''}`;
+  if (!ATOMS.length){
+    v.innerHTML = head + stateNote + `<div class="empty">
+      ${state.status ? `该状态下没有知识` : chips.length ? '当前筛选没有命中知识' : '知识库为空'}<br>
+      <small>${state.status ? '切换左侧「状态 → 正常」查看全部知识' : chips.length ? '更换关键词，或移除上面的筛选条件' : '完成采集与清洗后，知识将显示在这里'}</small>
+      ${chips.length ? '<div class="acts" style="justify-content:center;margin-top:12px"><button id="clear-flt2">清空筛选</button></div>'
+                     : '<div class="acts" style="justify-content:center;margin-top:12px"><button class="primary" id="goto-progress">去处理进度</button></div>'}
+      </div>`;
+    bindAtomsHead();
+    if ($('#clear-flt2')) $('#clear-flt2').onclick = clearFilters;
+    if ($('#goto-progress')) $('#goto-progress').onclick = () => {
+      state.view = 'progress'; syncURL(); renderView();
+    };
+    return;
+  }
+  const rest = Math.max(0, matched - ATOMS.length);
+  v.innerHTML = head + stateNote + `<div class="cards">` + ATOMS.slice(prev).map(a => cardHTML(a)).join('') + `</div>`
+    + (ATOMS_DONE ? `<div class="kv" style="text-align:center;padding:14px">已显示全部 ${ATOMS.length} 条</div>`
+                  : `<div class="acts" style="justify-content:center;margin-top:14px">
+                     <button id="more">加载更多（还有 ${rest} 条）</button></div>`);
+  bindCards();
+  bindAtomsHead();
+  if ($('#more')) $('#more').onclick = e => withBusy(e.target, '加载中…', async () => {
+    state.limit += 40;
+    history.replaceState({limit: state.limit}, '', location.href);
+    await loadAtoms(true);
+    // 把视口挪到新追加的第一条，接着往下看而不用重新找位置
+    const first = $$('.cards .card')[prev];
+    if (first) first.scrollIntoView({block:'start', behavior:'smooth'});
+  });
+}
+
+function bindAtomsHead(){
+  const q = $('#q');
+  if (q){
+    q.oninput = () => {
+      clearTimeout(ATOMS_SEARCH_TIMER);
+      ATOMS_SEARCH_TIMER = setTimeout(() => {
+        state.q = q.value.trim(); state.limit = 40;
+        syncURL();
+        loadAtoms().catch(e => viewError(e, loadAtoms)).then(() => {
+          const nq = $('#q'); if (nq){ nq.focus(); nq.setSelectionRange(nq.value.length, nq.value.length); }
+        });
+      }, 260);
+    };
+    q.onkeydown = e => {
+      if (e.key === 'Escape' && q.value){ q.value = ''; q.oninput(); }
+    };
+  }
+  const qc = $('#q-clear');
+  if (qc) qc.onclick = () => { state.q = ''; state.limit = 40; syncURL(); loadAtoms(); };
+  $$('[data-unset]').forEach(b => b.onclick = () => {
+    state[b.dataset.unset] = ''; state.limit = 40; renderSide(); syncURL(); loadAtoms();
+  });
+  const cf = $('#clear-flt');
+  if (cf) cf.onclick = clearFilters;
+}
+
+function clearFilters(){
+  state.q = state.project = state.tech = state.facet = state.kind = state.status = '';
+  state.limit = 40;
+  if (state.view !== 'atoms') state.view = 'atoms';
+  renderSide(); syncURL(); loadAtoms();
+}
+
+// 「场景:项目开发」这样的 facet 参数，转为展示文案
+function facetLabel(f){
+  const i = f.indexOf(':');
+  const dim = i < 0 ? f : f.slice(0, i);
+  const value = i < 0 ? '' : f.slice(i + 1);
+  return `${DIM_CN[dim] || dim}：${value}`;
+}
+
+// 作用域：global / project:xxx / tech:xxx
+function scopeLabel(s){
+  if (!s || s === 'global') return '全局';
+  const i = s.indexOf(':');
+  if (i < 0) return s;
+  const k = s.slice(0, i), v = s.slice(i + 1);
+  return (k === 'project' ? '项目 ' : k === 'tech' ? '技术 ' : k + ' ') + v;
+}
+
+function cardHTML(a){
+  const tags = (a.facets||[]).slice(0, 8).map(f =>
+    `<span class="chip" style="cursor:default">${esc(f.value)}</span>`).join('');
+  const more = (a.facets||[]).length > 8 ? `<span class="kv">+${a.facets.length - 8}</span>` : '';
+  const src = (a.sources||[]).map(s => `${s.source_kind}:${s.source_ref}`).slice(0,1).join('');
+  const fb = a.feedback || {};
+  // 摘要太短时退回正文前 400 字，保证卡片有足够上下文
+  const preview = (a.summary && a.summary.length >= 120)
+    ? a.summary : (a.body || '').slice(0, 400);
+  const fbChip = fb.last ? `<span class="chip" style="cursor:default">${FB_CN[fb.last]||fb.last}</span>` : '';
+  const fbCount = [fb.accepted && `采用 ${fb.accepted}`, fb.cited && `引用 ${fb.cited}`,
+    fb.rejected && `不相关 ${fb.rejected}`].filter(Boolean).join(' · ');
+  return `<div class="card" data-id="${a.atom_id}">
+    <div class="meta">
+      <span class="tag k-${a.kind}">${KIND_CN[a.kind]||a.kind}</span>
+      <span class="score" title="综合评分">${(+a.score||0).toFixed(2)}</span>
+      <span>${esc(scopeLabel(a.scope))}</span>
+      ${a.sensitivity ? `<span class="sens sens-${a.sensitivity}">${SENS_CN[a.sensitivity]||a.sensitivity}</span>` : ''}
+      ${a.state && a.state !== 'active' ? `<span class="chip" style="cursor:default">${STATE_CN[a.state]||a.state}</span>` : ''}
+      ${fbChip}
+    </div>
+    <h3 class="card-title" data-act="detail">${esc(a.title)}</h3>
+    <div class="body">${esc(preview)}</div>
+    ${tags ? `<div class="taglist">${tags}${more}</div>` : ''}
+    ${src ? `<div class="src" title="${esc(src)}">${esc(src)}</div>` : ''}
+    ${fbCount ? `<div class="kv" style="margin-top:4px">反馈：${fbCount}</div>` : ''}
+    <div class="acts">
+      <button class="sm ghost" data-act="detail">详情</button>
+      ${(a.state === 'dormant' || a.state === 'archived') ? '<button class="sm ok" data-act="restore">恢复</button>' : ''}
+      <span style="flex:1"></span>
+      <button class="sm ok ${fb.last === 'accepted' ? 'done' : ''}" data-ev="accepted">采用</button>
+      <button class="sm ${fb.last === 'cited' ? 'done' : ''}" data-ev="cited">引用</button>
+      <button class="sm no ${fb.last === 'rejected' ? 'done' : ''}" data-ev="rejected">不相关</button>
+    </div>
+  </div>`;
+}
+const SENS_CN = {public:'公开', internal:'内部', private:'私密'};
+const SCORE_CN = {fts:'关键词/语义', importance:'重要性', confidence:'置信度',
+  recency:'新鲜度', feedback:'反馈', trust:'可信度', vec_sim:'语义相似度'};
+
+function fbSummary(fb){
+  if (!fb) return '暂无';
+  const parts = [fb.accepted && `采用 ${fb.accepted}`, fb.cited && `引用 ${fb.cited}`,
+    fb.rejected && `不相关 ${fb.rejected}`, fb.verified && `核实 ${fb.verified}`,
+    fb.corrected && `纠正 ${fb.corrected}`].filter(Boolean);
+  return parts.length ? parts.join(' · ') : '暂无';
+}
+
+function bindCards(){
+  $$('.cards .card').forEach(c => {
+    const id = c.dataset.id;
+    if (!id) return;
+    c.querySelectorAll('[data-act=detail]').forEach(el => el.onclick = () => openDetail(id));
+    const rb = c.querySelector('[data-act=restore]');
+    if (rb) rb.onclick = e => {
+      e.stopPropagation();
+      withBusy(rb, '恢复中…', async () => {
+        const r = await post('/api/atom/restore', {atom_id:id});
+        if (r.error) return toast(r.error, 'error');
+        toast(r.restored ? '已恢复，重新参与检索' : '该条当前无需恢复', r.restored ? 'ok' : 'warn');
+        loadAtoms().catch(err => viewError(err, loadAtoms));
+      });
+    };
+    c.querySelectorAll('[data-ev]').forEach(b => b.onclick = async e => {
+      e.stopPropagation();
+      if (b.dataset.done) return;
+      await withBusy(b, '记录中…', async () => {
+        const ev = b.dataset.ev;
+        const r = await post('/api/feedback', {atom_id:id, event:ev});
+        if (r.error) return toast(r.error, 'error');
+        // 就地更新这一张卡：按钮状态、反馈次数、降权/恢复徽章都不需要整页刷新
+        const a = ATOMS.find(x => x.atom_id === id);
+        if (a){
+          a.feedback = a.feedback || {};
+          a.feedback.last = ev;
+          a.feedback[ev] = (a.feedback[ev] || 0) + 1;
+          if (r.demoted) a.state = 'dormant';
+          if (r.restored) a.state = 'active';
+          c.outerHTML = cardHTML(a);
+          bindCards();
+        }
+        if (r.restored) toast('该条已从「已降权」恢复，重新参与检索', 'ok');
+        else if (r.demoted) toast('连续多次「不相关」，该条进入「已降权」；正常命中不足时仍会召回，可在「状态 → 已降权」恢复', 'warn');
+        else if (ev === 'rejected'){
+          const left = Math.max(0, (r.threshold || 2) - (r.reject_streak || 1));
+          toast(left ? `已记录「不相关」（${r.reject_streak}/${r.threshold}）；再标记 ${left} 次将降权` : '已记录「不相关」', 'warn');
+        } else {
+          toast(ev === 'accepted' ? '已采用：后续检索会提高该条权重' : '已引用：后续检索会提高该条权重', 'ok');
+        }
+      });
+    });
+  });
+}
+
+// 知识详情抽屉：完整正文 + 全部标签 + 来源 + 评分拆解
+function openDetail(id){
+  const a = ATOMS.find(x => x.atom_id === id);
+  if (!a) return;
+  const bd = a.breakdown || {};
+  const d = document.createElement('div');
+  d.className = 'drawer';
+  d.innerHTML = `<button class="close" title="关闭（Esc）">✕</button>
+    <h3>${esc(a.title)}</h3>
+    <div class="meta">
+      <span class="tag k-${a.kind}">${KIND_CN[a.kind]||a.kind}</span>
+      <span>${esc(scopeLabel(a.scope))}</span>
+      ${a.sensitivity ? `<span class="sens sens-${a.sensitivity}">${SENS_CN[a.sensitivity]||a.sensitivity}</span>` : ''}
+      <span>置信 ${(+a.confidence||0).toFixed(2)}</span><span>可靠 ${(+a.veracity||0).toFixed(2)}</span>
+      <span class="score">评分 ${(+a.score||0).toFixed(2)}</span>
+      ${a.state && a.state !== 'active' ? `<span class="chip" style="cursor:default">${STATE_CN[a.state]||a.state}</span>` : ''}
+    </div>
+    <div class="kvrow"><span>正文</span><pre>${esc(a.body)}</pre></div>
+    <div class="kvrow"><span>标签</span><div class="taglist">${(a.facets||[]).map(f=>`<span class="chip" style="cursor:default">${esc(f.value)}</span>`).join('')||'—'}</div></div>
+    <div class="kvrow"><span>来源</span><div>${(a.sources||[]).map(s=>`<div class="kv">${esc(SOURCE_CN[s.source_kind]||s.source_kind)} · ${esc(s.source_ref)}</div>`).join('')||'—'}</div></div>
+    <div class="kvrow"><span>评分拆解</span><div class="kv">${Object.entries(bd).map(([k,v])=>`${SCORE_CN[k]||k} ${(+v).toFixed(3)}`).join(' · ')||'—'}</div></div>
+    <div class="kvrow"><span>使用反馈</span><div class="kv">${fbSummary(a.feedback)}</div></div>
+    <div class="kvrow"><span>有效期</span><div class="kv">${a.valid_from?fmtT(a.valid_from):'—'} → ${a.valid_until?fmtT(a.valid_until):'长期'}</div></div>
+    <div class="acts" style="margin-top:14px">
+      <button class="sm ok" data-ev="accepted">采用</button>
+      <button class="sm" data-ev="cited">引用</button>
+      <button class="sm no" data-ev="rejected">不相关</button>
+      ${(a.state === 'dormant' || a.state === 'archived') ? '<button class="sm ok" data-act="restore">恢复</button>' : ''}
+    </div>`;
+  openDrawer(d);
+  d.querySelector('.close').onclick = () => closeDrawers();
+  const rb = d.querySelector('[data-act=restore]');
+  if (rb) rb.onclick = () => withBusy(rb, '恢复中…', async () => {
+    const r = await post('/api/atom/restore', {atom_id:id});
+    if (r.error) return toast(r.error, 'error');
+    toast(r.restored ? '已恢复，重新参与检索' : '该条当前无需恢复', r.restored ? 'ok' : 'warn');
+    closeDrawers();
+    loadAtoms().catch(err => viewError(err, loadAtoms));
+  });
+  d.querySelectorAll('[data-ev]').forEach(b => b.onclick = async () => {
+    await withBusy(b, '记录中…', async () => {
+      const ev = b.dataset.ev;
+      const r = await post('/api/feedback', {atom_id:id, event:ev});
+      if (r.error){ b.textContent = '记录失败'; return toast(r.error, 'error'); }
+      const a2 = ATOMS.find(x => x.atom_id === id);
+      if (a2){
+        a2.feedback = a2.feedback || {};
+        a2.feedback.last = ev;
+        a2.feedback[ev] = (a2.feedback[ev] || 0) + 1;
+        if (r.demoted) a2.state = 'dormant';
+        if (r.restored) a2.state = 'active';
+      }
+      if (r.restored) toast('该条已从「已降权」恢复，重新参与检索', 'ok');
+      else if (r.demoted) toast('连续多次「不相关」，该条进入「已降权」；正常命中不足时仍会召回，可在「状态 → 已降权」恢复', 'warn');
+      else if (ev === 'rejected'){
+        const left = Math.max(0, (r.threshold || 2) - (r.reject_streak || 1));
+        toast(left ? `已记录「不相关」（${r.reject_streak}/${r.threshold}）；再标记 ${left} 次将降权` : '已记录「不相关」', 'warn');
+      } else {
+        toast(ev === 'accepted' ? '已采用：后续检索会提高该条权重' : '已引用：后续检索会提高该条权重', 'ok');
+      }
+      closeDrawers();
+      openDetail(id);
+    });
+  });
+}
+
+function esc(s){ return String(s??'').replace(/[&<>"]/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[m])); }
+// 进度页每 2.5 秒自刷新，焦点在输入框里时暂停刷新，避免打断输入
+function typingInView(){
+  const a = document.activeElement;
+  return a && (a.tagName === 'INPUT' || a.tagName === 'TEXTAREA' || a.isContentEditable);
+}
+
+// ---------------- graph
+const GTYPE_CN = {project:'项目', tech:'技术', concept:'概念', person:'人物',
+  tool:'工具', file:'文件', org:'组织'};
+
+async function loadGraph(focusId){
+  const v = $('#view');
+  v.innerHTML = `<div class="graph-wrap"><canvas id="graph"></canvas>
+    <aside class="gp" id="gpanel" hidden></aside>
+    <div class="legend">
+      <div><span class="dot" style="background:#D99A5B"></span>项目</div>
+      <div><span class="dot" style="background:#8FBF7A"></span>技术</div>
+      <div><span class="dot" style="background:#B98FA8"></span>概念</div>
+      <div style="margin-top:4px;color:var(--fg-4)">点击节点查看详情 · 拖拽平移 · 滚轮缩放</div>
+    </div></div>`;
+  // 带 around 时把目标节点的邻居一起拉进来，保证从详情里跳过去一定能定位到
+  const g = await get('/api/graph?limit=90' + (focusId ? '&around=' + encodeURIComponent(focusId) : ''));
+  if (g.error) return viewError(g.error, loadGraph);
+  drawGraph(g, focusId);
+}
+
+function drawGraph(g, focusId){
+  const cv = $('#graph'), ctx = cv.getContext('2d'), panel = $('#gpanel');
+  const dpr = window.devicePixelRatio || 1;
+  function resize(){
+    const r = cv.parentElement.getBoundingClientRect();
+    cv.width = r.width*dpr; cv.height = r.height*dpr;
+    cv.style.width = r.width+'px'; cv.style.height = r.height+'px';
+    ctx.setTransform(dpr,0,0,dpr,0,0);
+  }
+  resize();
+  const W = () => cv.width/dpr, H = () => cv.height/dpr;
+  const COLOR = {project:'#D99A5B', tech:'#8FBF7A', concept:'#B98FA8'};
+  const light = isLight();
+  const ACCENT = light ? '#A85E17' : '#E0A458';
+  const EDGE = light ? {co_used:'rgba(90,120,60,.22)', default:'rgba(150,110,60,.24)'}
+                     : {co_used:'rgba(143,191,122,.18)', default:'rgba(224,164,88,.24)'};
+  const LABEL = light ? '#4B3F34' : '#D8CCC0';
+  const FALLBACK = light ? '#9B8B7B' : '#A89A8C';
+  const nodes = g.nodes.map((n,i) => ({
+    ...n,
+    x: W()/2 + Math.cos(i*2.399)*Math.min(W(),H())*0.32 + (Math.random()-.5)*60,
+    y: H()/2 + Math.sin(i*2.399)*Math.min(W(),H())*0.32 + (Math.random()-.5)*60,
+    vx:0, vy:0, r: 4 + Math.min(14, Math.sqrt(n.degree||1)*1.8)
+  }));
+  const idx = Object.fromEntries(nodes.map(n => [n.entity_id, n]));
+  const edges = g.edges.filter(e => idx[e.src_id] && idx[e.dst_id]);
+  let scale = 1, ox = 0, oy = 0, drag = null, down = null;
+  let sel = null, nbrs = new Set(), focus = null, panelSeq = 0;
+
+  function neighborsOf(n){
+    const s = new Set();
+    for (const e of edges){
+      if (e.src_id === n.entity_id) s.add(e.dst_id);
+      else if (e.dst_id === n.entity_id) s.add(e.src_id);
+    }
+    return s;
+  }
+  function hitTest(e){
+    const r = cv.getBoundingClientRect();
+    const mx = (e.clientX-r.left-ox)/scale, my = (e.clientY-r.top-oy)/scale;
+    return nodes.find(n => (n.x-mx)**2 + (n.y-my)**2 < (n.r+6)**2) || null;
+  }
+
+  function tick(){
+    // 斥力
+    for (let i=0;i<nodes.length;i++){
+      const a = nodes[i];
+      for (let j=i+1;j<nodes.length;j++){
+        const b = nodes[j];
+        let dx = b.x-a.x, dy = b.y-a.y, d2 = dx*dx+dy*dy || 0.01;
+        if (d2 > 90000) continue;
+        const f = 1400/d2;
+        const d = Math.sqrt(d2);
+        dx/=d; dy/=d;
+        a.vx -= dx*f; a.vy -= dy*f; b.vx += dx*f; b.vy += dy*f;
+      }
+    }
+    // 弹簧
+    for (const e of edges){
+      const a = idx[e.src_id], b = idx[e.dst_id];
+      const dx = b.x-a.x, dy = b.y-a.y, d = Math.sqrt(dx*dx+dy*dy)||1;
+      const target = 90 + 40/Math.log2(2+(e.weight||1));
+      const f = (d-target)*0.0025;
+      a.vx += dx/d*f; a.vy += dy/d*f; b.vx -= dx/d*f; b.vy -= dy/d*f;
+    }
+    // 向心 + 阻尼
+    const cx = W()/2, cy = H()/2;
+    for (const n of nodes){
+      n.vx += (cx-n.x)*0.0009; n.vy += (cy-n.y)*0.0009;
+      n.vx *= 0.88; n.vy *= 0.88;
+      n.x += n.vx; n.y += n.vy;
+    }
+  }
+  function paint(){
+    ctx.clearRect(0,0,W(),H());
+    ctx.save();
+    ctx.translate(ox, oy); ctx.scale(scale, scale);
+    for (const e of edges){
+      const a = idx[e.src_id], b = idx[e.dst_id];
+      const on = sel && (e.src_id === sel.entity_id || e.dst_id === sel.entity_id);
+      ctx.globalAlpha = sel && !on ? 0.16 : 1;
+      ctx.strokeStyle = on ? ACCENT : (e.rel === 'co_used' ? EDGE.co_used : EDGE.default);
+      ctx.lineWidth = (on ? 1.7 : 0.8)/scale;
+      ctx.beginPath(); ctx.moveTo(a.x,a.y); ctx.lineTo(b.x,b.y); ctx.stroke();
+    }
+    ctx.globalAlpha = 1;
+    for (const n of nodes){
+      const near = !sel || n === sel || nbrs.has(n.entity_id);
+      ctx.globalAlpha = near ? 0.9 : 0.16;
+      ctx.beginPath(); ctx.arc(n.x,n.y,n.r,0,7);
+      ctx.fillStyle = COLOR[n.type] || FALLBACK;
+      ctx.fill();
+      if (n === sel){
+        ctx.globalAlpha = 1;
+        ctx.strokeStyle = ACCENT; ctx.lineWidth = 1.6/scale;
+        ctx.beginPath(); ctx.arc(n.x,n.y,n.r+3.5,0,7); ctx.stroke();
+      }
+      if (n === sel || (near && (scale > 0.7 || n.degree > 12))){
+        ctx.globalAlpha = near ? 1 : 0.3;
+        ctx.fillStyle = n === sel ? (light ? '#2A2119' : '#EFEFF1') : LABEL;
+        ctx.font = `${(n === sel ? 12 : 11)/scale}px -apple-system,PingFang SC,sans-serif`;
+        ctx.textAlign = 'center';
+        ctx.fillText(n.name.length>16 ? n.name.slice(0,15)+'…' : n.name, n.x, n.y - n.r - 4);
+      }
+    }
+    ctx.globalAlpha = 1;
+    ctx.restore();
+  }
+  let raf;
+  function loop(){
+    for (let k=0;k<2;k++) tick();
+    if (focus){
+      // 反定位：把镜头平滑挪到目标节点，到位后停手
+      const tx = W()/2 - focus.x*scale, ty = H()/2 - focus.y*scale;
+      ox += (tx-ox)*0.2; oy += (ty-oy)*0.2;
+      if (Math.abs(tx-ox) < 0.6 && Math.abs(ty-oy) < 0.6){ ox = tx; oy = ty; focus = null; }
+    }
+    paint(); raf = requestAnimationFrame(loop);
+  }
+  loop();
+
+  // ---- 详情面板
+  function bindClose(){
+    const b = panel && panel.querySelector('.gp-close');
+    if (b) b.onclick = clearSel;
+  }
+  function closePanel(){
+    panelSeq++;
+    if (panel){ panel.hidden = true; panel.innerHTML = ''; }
+  }
+  function clearSel(){ sel = null; nbrs = new Set(); closePanel(); }
+
+  function renderPanel(d){
+    const n = d.node, rels = d.relations || [], atoms = d.atoms || [];
+    const facet = (d.facet && d.facet.dim) ? `${d.facet.dim}:${d.facet.value}` : '';
+    panel.innerHTML = `
+      <div class="gp-head"><span class="gp-type">${GTYPE_CN[n.type]||n.type}</span>
+        <button class="gp-close" title="关闭（Esc）">✕</button></div>
+      <h3>${esc(n.name)}</h3>
+      <div class="kv">关联知识 <b>${n.atoms}</b> 条 · 关系 <b>${n.degree}</b> 条</div>
+      <div class="gp-sec">关系</div>
+      ${rels.length ? rels.map(r => `<button class="gp-rel" data-node="${esc(r.node_id)}"
+          title="定位到「${esc(r.name)}」">
+          <span class="dot" style="background:${COLOR[r.type]||FALLBACK}"></span>
+          <span class="rel">${r.dir === 'out' ? esc(r.rel_cn)+' →' : '← '+esc(r.rel_cn)}</span>
+          <span class="nm">${esc(r.name)}</span>
+          ${r.weight > 1 ? `<span class="wt">${Math.round(r.weight)}</span>` : ''}
+        </button>`).join('') : `<div class="kv">暂无关联节点</div>`}
+      <div class="gp-sec">相关知识</div>
+      ${atoms.length ? atoms.map(a => `<div class="gp-atom">
+          <span class="tag k-${a.kind}">${KIND_CN[a.kind]||a.kind}</span>
+          <span>${esc(a.title)}</span></div>`).join('')
+        : `<div class="kv">这个节点下还没有知识</div>`}
+      ${n.atoms ? `<button class="gp-more">在知识浏览中查看全部 ${n.atoms} 条</button>` : ''}`;
+    bindClose();
+    panel.querySelectorAll('.gp-rel').forEach(b => b.onclick = () => {
+      const next = nodes.find(x => x.entity_id === b.dataset.node);
+      if (next) selectNode(next, {center:true});
+      else loadGraph(b.dataset.node);   // 不在当前子图里：重载并把它的邻居带进来
+    });
+    const more = panel.querySelector('.gp-more');
+    if (more) more.onclick = () => {
+      state.view = 'atoms'; state.q = ''; state.kind = '';
+      state.project = ''; state.tech = ''; state.facet = facet; state.limit = 40;
+      syncURL(); renderView();
+    };
+  }
+
+  async function selectNode(n, opts={}){
+    if (!n || !panel) return;
+    sel = n; nbrs = neighborsOf(n);
+    if (opts.center){
+      focus = n;
+      scale = Math.max(scale, 0.8);
+    }
+    const seq = ++panelSeq;
+    panel.hidden = false;
+    panel.innerHTML = `<div class="gp-head"><span class="gp-type">${GTYPE_CN[n.type]||n.type}</span>
+      <button class="gp-close" title="关闭（Esc）">✕</button></div>
+      <h3>${esc(n.name)}</h3><div class="kv">正在加载关联信息…</div>`;
+    bindClose();
+    const d = await get('/api/graph?node=' + encodeURIComponent(n.entity_id));
+    if (seq !== panelSeq) return;
+    if (d.error){
+      panel.innerHTML = `<div class="gp-head"><span class="gp-type">${GTYPE_CN[n.type]||n.type}</span>
+        <button class="gp-close" title="关闭（Esc）">✕</button></div>
+        <h3>${esc(n.name)}</h3><div class="kv">${esc(d.error)}</div>`;
+      bindClose(); return;
+    }
+    renderPanel(d);
+  }
+
+  cv.onmousedown = e => {
+    const hit = hitTest(e);
+    down = {x:e.clientX, y:e.clientY, node:hit, moved:false};
+    drag = hit || {pan:true, sx:e.clientX, sy:e.clientY, ox, oy};
+    cv.classList.add('grabbing');
+  };
+  cv.onmousemove = e => {
+    if (!drag){ cv.classList.toggle('pointing', !!hitTest(e)); return; }
+    if (down && Math.abs(e.clientX-down.x) + Math.abs(e.clientY-down.y) > 4) down.moved = true;
+    if (drag.pan){ ox = drag.ox + (e.clientX-drag.sx); oy = drag.oy + (e.clientY-drag.sy); return; }
+    const r = cv.getBoundingClientRect();
+    drag.x = (e.clientX-r.left-ox)/scale; drag.y = (e.clientY-r.top-oy)/scale;
+    drag.vx = drag.vy = 0;
+  };
+  const onUp = () => {
+    cv.classList.remove('grabbing');
+    if (down && !down.moved){
+      if (down.node) selectNode(down.node);
+      else clearSel();          // 点空白处收起详情
+    }
+    drag = null; down = null;
+  };
+  window.addEventListener('mouseup', onUp);
+  cv.onwheel = e => {
+    e.preventDefault();
+    const r = cv.getBoundingClientRect();
+    const mx = e.clientX-r.left, my = e.clientY-r.top;
+    const k = e.deltaY < 0 ? 1.1 : 0.91;
+    scale = Math.min(3, Math.max(0.3, scale*k));
+    ox = mx - (mx-ox)*k; oy = my - (my-oy)*k;
+  };
+  const onResize = () => resize();
+  const onKey = e => { if (e.key === 'Escape' && sel) clearSel(); };
+  window.addEventListener('resize', onResize);
+  document.addEventListener('keydown', onKey);
+  window._stopGraph = () => {
+    cancelAnimationFrame(raf);
+    window.removeEventListener('mouseup', onUp);
+    window.removeEventListener('resize', onResize);
+    document.removeEventListener('keydown', onKey);
+  };
+
+  const start = idx[focusId];
+  if (start) selectNode(start, {center:true});
+}
+
+// ---------------- profile
+async function loadProfile(){
+  const p = await get('/api/profile');
+  const f = $('#view');
+  const dims = p.dimensions || [];
+  if (!dims.length){ f.innerHTML = `<div class="empty">还没有能力画像<br>
+    <small>先完成采集和清洗，再执行 minime update 生成</small></div>`; return; }
+  f.innerHTML = `<h2>能力画像 <span class="tabs-hint">从知识库统计出的 8 个维度，证据数是支撑该评分的知识条数</span><br><span class="kv">生成于 ${new Date(p.generated_at*1000).toLocaleString('zh-CN')}</span></h2>
+    <div class="grid2">
+      <div>${dims.map(d => `
+        <div style="margin-bottom:14px">
+          <div style="display:flex;justify-content:space-between">
+            <span>${dimName(d.dimension)}</span>
+            <span class="score">${d.score==null?'—':d.score.toFixed(0)} <small style="color:var(--fg-4)">/ 证据 ${d.evidence}</small></span>
+          </div>
+          <div class="bar"><i style="width:${d.score||0}%"></i></div>
+          <div class="kv" style="margin-top:3px">${esc(d.detail)}</div>
+        </div>`).join('')}</div>
+      <div>
+        <h2 style="font-size:13px">项目分布</h2>
+        ${Object.entries(p.projects||{}).slice(0,14).map(([k,v]) => {
+          const mx = Math.max(...Object.values(p.projects));
+          return `<div class="proj-row"><span title="${esc(k)}">${esc(k)}</span>
+            <div class="bar" style="margin:0"><i style="width:${v/mx*100}%"></i></div>
+            <span class="score">${v}</span></div>`;
+        }).join('')}
+        <h2 style="font-size:13px;margin-top:22px">技术栈</h2>
+        ${Object.entries(p.techs||{}).slice(0,14).map(([k,v]) =>
+          `<div class="proj-row"><span>${esc(k)}</span>
+            <div class="bar" style="margin:0"><i style="width:${v/Math.max(...Object.values(p.techs))*100}%;background:var(--acc)"></i></div>
+            <span class="score">${v}</span></div>`).join('')}
+      </div>
+    </div>`;
+}
+function dimName(d){
+  return {tech_breadth:'技术广度',project_span:'项目跨度',delivery_volume:'交付体量',
+    architecture_depth:'架构沉淀',debugging:'排障能力',domain_focus:'领域聚焦',
+    independence:'独立性（用户主导度）',knowledge_asset:'知识资产'}[d] || d;
+}
+
+// ---------------- workspaces
+async function loadWorkspaces(){
+  const d = await get('/api/workspaces');
+  const rows = d.workspaces || [];
+  const mx = Math.max(1, ...rows.map(r => r.indexed_sessions));
+  $('#view').innerHTML = `<h2>工作区 <span class="tabs-hint">仅显示已采集的工作区；未出现表示尚未采集</span><br><span class="kv">共 ${rows.length} 个工作区 ·
+    索引会话 ${d.total_sessions} · 有逐轮快照 ${d.sessions_with_snapshot}</span></h2>
+    <table style="width:100%;border-collapse:collapse;font-size:12px">
+      <thead><tr style="color:var(--fg-3);text-align:left;border-bottom:1px solid var(--line)">
+        <th style="padding:6px 4px">工作区</th><th>路径</th><th style="width:140px">会话数</th>
+        <th>有快照</th><th>文件历史</th><th>最近活动</th></tr></thead>
+      <tbody>${rows.map(r => `<tr style="border-bottom:1px solid var(--line)">
+        <td style="padding:5px 4px"><b>${esc(r.name)}</b></td>
+        <td style="color:var(--fg-4);font-size:11px">${esc(r.path||'')}</td>
+        <td><div style="display:flex;align-items:center;gap:6px">
+          <div class="bar" style="margin:0;flex:1"><i style="width:${r.indexed_sessions/mx*100}%"></i></div>
+          <span class="score">${r.indexed_sessions}</span></div></td>
+        <td class="score">${r.with_snapshot||0}</td>
+        <td class="score">${r.files||0}</td>
+        <td style="color:var(--fg-4)">${r.last_ts ? new Date(r.last_ts*1000).toLocaleDateString('zh-CN') : '—'}</td>
+      </tr>`).join('')}</tbody></table>`;
+}
+
+// ---------------- settings
+async function waitWebUp(base, timeoutMs){
+  // 重启期间面板必然连不上；用 no-cors 轮询只判断「端口是否已能响应」
+  const t0 = Date.now();
+  while (Date.now() - t0 < timeoutMs){
+    try {
+      await fetch(base + '/api/health', {cache:'no-store', mode:'no-cors'});
+      return true;
+    } catch(e){ /* 还没起来 */ }
+    await new Promise(r => setTimeout(r, 500));
+  }
+  return false;
+}
+
+async function loadSettings(){
+  const [cfg, health] = await Promise.all([get('/api/config'), get('/api/health')]);
+  const {saved, current, schema} = cfg;
+  // 按 group 聚合，表单完全由后端 schema 驱动：新增配置项无需改前端
+  const groups = new Map();
+  for (const f of schema){
+    if (!groups.has(f.group)) groups.set(f.group, []);
+    groups.get(f.group).push(f);
+  }
+  const fmt = v => v == null ? '' : (Array.isArray(v) ? v.join('\n') : String(v));
+  const ctl = f => {
+    const v = fmt(current[f.key]);
+    const savedRaw = saved[f.key];
+    // 只有「保存过、但当前生效值不同」才提示；没保存过的默认值不该被标黄
+    const overridden = !f.sensitive && savedRaw != null
+      && JSON.stringify(savedRaw) !== JSON.stringify(current[f.key] ?? null);
+    const tag = overridden
+      ? ` <span class="pill warn" title="环境变量优先级高于面板保存值">环境变量覆盖</span>` : '';
+    const hint = [f.hint, f.env ? `环境变量 <code>${esc(f.env)}</code>` : '']
+      .filter(Boolean).join(' · ');
+    const hintHtml = hint ? `<div class="cfg-hint">${hint}</div>` : '';
+    const label = `<label class="cfg-label" for="cfg-${f.key}">${esc(f.label)}${tag}</label>`;
+    if (f.type === 'bool'){
+      return `<div class="cfg-field">${label}
+        <div class="cfg-ctl"><input type="checkbox" id="cfg-${f.key}"
+          data-key="${f.key}" ${current[f.key]?'checked':''}></div>${hintHtml}</div>`;
+    }
+    const ph = `跟随默认${v?`（当前 ${esc(v).slice(0,40)}）`:''}`;
+    if (f.options){
+      const opts = ['', ...f.options].map(o => {
+        const txt = o ? esc((f.option_labels||{})[o] || o) : '跟随默认';
+        return `<option value="${esc(o)}" ${fmt(current[f.key])===o?'selected':''}>${txt}</option>`;
+      }).join('');
+      return `<div class="cfg-field">${label}
+        <div class="cfg-ctl"><select id="cfg-${f.key}" data-key="${f.key}">${opts}</select></div>${hintHtml}</div>`;
+    }
+    const wide = f.type === 'list' ? ' span2' : '';
+    const input = f.type === 'list'
+      ? `<textarea id="cfg-${f.key}" data-key="${f.key}" rows="3"
+          placeholder="${esc(ph)}">${esc(v)}</textarea>`
+      : `<input id="cfg-${f.key}" data-key="${f.key}"
+          type="${(f.type==='int'||f.type==='float') ? 'number' : 'text'}"
+          value="${f.sensitive?'':esc(v)}"
+          placeholder="${f.sensitive && v ? '已设置（留空将清除）' : esc(ph)}">`;
+    return `<div class="cfg-field${wide}">${label}
+      <div class="cfg-ctl">${input}</div>${hintHtml}</div>`;
+  };
+  const groupHtml = [...groups].map(([g, fields]) => `
+    <div class="cfg-group"><h3>${esc(g)}<span class="kv">${fields.length} 项</span></h3>
+      <div class="cfg-fields">${fields.map(ctl).join('')}</div></div>`).join('');
+
+  const curPort = Number(current['web.port'] || 8765);
+  const runPort = Number(health.port || curPort);
+  const stale = (health.code_stale || []).filter(p => p !== 'web/index.html');
+  const notes = [];
+  if (curPort !== runPort)
+    notes.push(`<span style="color:var(--warn)">端口已改为 ${curPort}，重启后生效</span>`);
+  if (stale.length)
+    notes.push(`<span style="color:var(--warn)">服务端代码有更新，重启后生效</span>`);
+
+  $('#view').innerHTML = `<h2>设置 <span class="tabs-hint">配置保存即写入 config.json；端口改动与面板代码更新需重启</span></h2>
+    <div class="cfg-bar">
+      <span id="cfg-out" class="kv">共 ${schema.length} 项配置 · 当前端口 ${runPort}</span>
+      <span class="spacer"></span>
+      ${notes.join('')}
+      <button id="cfg-reset" class="ghost">撤销修改</button>
+      <button class="primary" id="cfg-save">保存全部</button>
+      <button id="cfg-restart" title="重启面板进程，使端口等改动生效">重启面板</button>
+    </div>
+    ${groupHtml}
+    <div class="cfg-group"><h3>同步与连通测试</h3>
+      <div class="kv" style="margin-bottom:10px">把高可信度的决策/偏好/教训单向同步到 mnemosyne。</div>
+      <div class="acts"><button id="sync-preview">预览候选</button><button class="primary" id="sync-run">立即同步</button>
+        <button id="llm-test">测试模型连通</button></div>
+      <div id="sync-out" class="kv" style="margin-top:8px"></div>
+    </div>`;
+
+  // 有未保存改动时给出提示，避免直接关页面丢配置
+  const markDirty = () => {
+    const out = $('#cfg-out');
+    if (out) out.innerHTML = '<span style="color:var(--warn)">有未保存的修改</span>';
+  };
+  $$('#view .cfg-fields input, #view .cfg-fields textarea, #view .cfg-fields select').forEach(
+    el => { el.addEventListener('input', markDirty); el.addEventListener('change', markDirty); });
+
+  $('#cfg-save').onclick = async e => {
+    const values = {};
+    $$('[data-key]').forEach(el => {
+      const k = el.dataset.key;
+      values[k] = el.type === 'checkbox' ? el.checked : el.value;
+    });
+    await withBusy(e.target, '保存中…', async () => {
+      const r = await post('/api/config', {values});
+      const errs = Object.entries(r.errors||{});
+      if (errs.length){
+        $('#cfg-out').innerHTML = `<span style="color:var(--bad)">${errs.map(([,m])=>esc(m)).join('；')}</span>`;
+        toast('部分配置未通过校验，请查看提示', 'error');
+        return;
+      }
+      const n = Object.keys(r.applied||{}).length;
+      toast(`已保存 ${n} 项`, 'ok');
+      const curPort = Number((r.applied||{})['web.port'] || 0);
+      if (curPort && curPort !== Number(health.port)){
+        $('#cfg-out').innerHTML = `<span style="color:var(--warn)">已保存 ${n} 项 · 端口改为 ${curPort}，重启后生效</span>`;
+      } else {
+        $('#cfg-out').innerHTML = `<span style="color:var(--ok)">已保存 ${n} 项</span>`;
+        setTimeout(loadSettings, 600);
+      }
+    });
+  };
+  $('#cfg-reset').onclick = () => loadSettings();
+  $('#cfg-restart').onclick = async e => {
+    const dirty = ($('#cfg-out')?.textContent || '').includes('未保存');
+    const ok = await confirmBox({
+      title: '重启面板？',
+      text: '面板进程就地重启，端口等设置立即生效；正在采集/归纳的后台任务会被中断。'
+        + (dirty ? ' 当前还有未保存的修改，重启将丢弃。' : ''),
+      ok: '重启'});
+    if (!ok) return;
+    await withBusy(e.target, '重启中…', async () => {
+      const r = await post('/api/restart', {});
+      if (r.error) return toast(r.error, 'error');
+      const port = r.port || runPort;
+      const base = `${location.protocol}//${location.hostname}:${port}`;
+      toast('面板重启中，稍后自动刷新', 'warn');
+      if (!await waitWebUp(base, 20000)){
+        toast('重启后未能连接，请手动执行 minime web', 'error');
+        return;
+      }
+      if (String(port) !== location.port) location.href = `${base}/?view=settings`;
+      else location.reload();
+    });
+  };
+
+  $('#llm-test').onclick = e => withBusy(e.target, '探测中…', async () => {
+    const r = await get('/api/llm/health');
+    $('#sync-out').innerHTML = r.ok
+      ? `<span style="color:var(--ok)">连接正常</span> · 当前模型 <b>${esc(r.using)}</b> · 可用 ${(r.models||[]).length} 个`
+      : `<span style="color:var(--bad)">连接失败</span> · ${esc(r.error)}`;
+    toast(r.ok ? '模型连接正常' : '模型连接失败', r.ok ? 'ok' : 'error');
+  });
+  const showSync = (r, prefix) => {
+    if (!r.preview) {
+      $('#sync-out').innerHTML = `${prefix} · 已同步 <b>${r.synced??0}</b> · 失败 <b>${r.failed??0}</b>`
+        + (r.skipped ? ` · ${esc(r.skipped)}` : '') + (r.error ? ` · ${esc(r.error)}` : '');
+      return;
+    }
+    const rows = (r.preview||[]).map(c => `<div class="kv">· [${esc(KIND_CN[c.kind]||c.kind)}] ${esc(c.title)} <span class="kv">(可信层级 ${c.trust_tier} · 可靠度 ${c.veracity})</span></div>`).join('');
+    $('#sync-out').innerHTML = `已同步 <b>${r.synced}</b> 条 · mnemosyne CLI ${r.cli?'可用':'缺失'}<br>`
+      + (rows || '<div class="kv">暂无待同步候选</div>');
+  };
+  $('#sync-preview').onclick = async () => {
+    $('#sync-out').textContent = '读取中…';
+    showSync(await get('/api/sync'), '预览');
+  };
+  $('#sync-run').onclick = async () => {
+    $('#sync-out').textContent = '同步中…';
+    showSync(await post('/api/sync', {dry_run:false}), '完成');
+  };
+}
+
+// ---------------- packs（资源包）
+let PACKDATA = null;
+
+async function loadPacks(){
+  const [pd, ad] = await Promise.all([get('/api/packs'), get('/api/pack')]);
+  if (pd.error) return viewError(pd.error, loadPacks);
+  PACKDATA = pd;
+  const audit = ad.audit || {};
+  const findings = audit.findings || [];
+  const sens = pd.sensitivity || {};
+  const files = ad.packs || [];
+
+  const auditRows = findings.length ? findings.map(f => `<div class="srcrow" style="grid-template-columns:130px 1fr">
+      <span>${esc(f.label)}</span>
+      <span class="kv">${f.count} 处 · ${esc(f.action)}
+        <span style="color:var(--fg-4)">${f.examples.slice(0,3).map(esc).join(' , ')}</span></span>
+    </div>`).join('') : `<div class="kv" style="color:var(--ok)">未发现路径、密钥、邮箱、手机号等敏感内容</div>`;
+
+  const packCards = (pd.packs||[]).map(p => {
+    const mine = p.owner === 'self';
+    const colls = (p.collections||[]).map(c => `
+      <div class="pk-coll">
+        <label class="pk-switch">
+          <input type="checkbox" data-coll="${esc(c.collection_id)}" ${c.enabled?'checked':''}>
+          <span class="pk-slider"></span>
+        </label>
+        <span class="pk-coll-name">${esc(c.name)}</span>
+        <span class="kv">${c.n_atoms} 条</span>
+        <span style="flex:1"></span>
+        <button class="sm ghost" data-coll-view="${esc(c.collection_id)}" data-coll-title="${esc(c.name)}">查看内容</button>
+        ${mine && c.collection_id !== 'C:self:all'
+          ? `<button class="sm ghost" data-coll-drop="${esc(c.collection_id)}" data-coll-title="${esc(c.name)}">移除</button>` : ''}
+      </div>`).join('');
+    return `<div class="pk-card">
+      <div class="pk-head">
+        <div>
+          <div class="pk-title">${esc(p.name)}
+            <span class="pk-badge ${mine?'mine':'imported'}">${mine?'我的':'他人导入'}</span>
+            ${p.enabled_collections ? `<span class="pk-badge on">开启 ${p.enabled_collections}/${(p.collections||[]).length}</span>` : '<span class="pk-badge off">全部关闭</span>'}
+          </div>
+          <div class="kv">${p.n_atoms} 条知识 · ${(p.collections||[]).length} 套知识集
+            ${p.author?` · 作者 ${esc(p.author)}`:''} · ${fmtT(p.created_at)}
+            ${p.origin?` · 来自 ${esc(p.origin)}`:''}</div>
+        </div>
+        <div class="acts">
+          ${mine ? `<button class="sm" data-new-coll="${esc(p.pack_id)}">+ 新建知识集</button>` : ''}
+          ${mine && p.pack_id !== 'P:self'
+            ? `<button class="sm ghost" data-del-pack="${esc(p.pack_id)}" data-name="${esc(p.name)}">删除包</button>` : ''}
+        </div>
+      </div>
+      <div class="pk-colls">${colls || '<div class="kv">还没有知识集</div>'}</div>
+      ${mine ? '' : `<div class="kv" style="margin-top:6px;color:var(--warn)">他人导入的包只可使用，不可导出、不可编辑</div>`}
+    </div>`;
+  }).join('');
+
+  const fileRows = files.map(f => `<tr>
+    <td><b>${esc(f.name || f.file)}</b><div class="kv">${(f.size_kb).toFixed(0)} KB · ${f.atoms ?? '—'} 条 · ${esc(f.author||'匿名')} · ${fmtT(f.mtime)}</div></td>
+    <td style="white-space:nowrap">
+      <button class="sm ghost" data-inspect="${esc(f.file)}">查看</button>
+      <a href="/api/pack/download?file=${encodeURIComponent(f.file)}"><button class="sm">下载</button></a>
+      <button class="sm" data-import="${esc(f.file)}">重新导入</button>
+      <button class="sm danger" data-delete="${esc(f.file)}">删除文件</button>
+    </td></tr>`).join('');
+
+  $('#view').innerHTML = `<h2>资源包 <span class="tabs-hint">已开启的知识集参与检索与对话；全部关闭时不限制检索范围</span><br>
+    <span class="kv">一个资源包可包含多套知识集；自己的包可导出分享，他人导入的包仅可使用</span></h2>
+
+    <div class="card">
+      <h3>我的资源包 <span class="kv">敏感度分布：公开 ${sens.public||0} · 内部 ${sens.internal||0} · 私密 ${sens.private||0}</span></h3>
+      <div class="pk-list">${packCards || '<div class="kv">还没有资源包</div>'}</div>
+      <div class="acts" style="margin-top:12px">
+        <input id="np-name" placeholder="资源包名称，如「架构方法论」" style="width:240px">
+        <input id="np-author" placeholder="作者（可选）" style="width:150px">
+        <button class="sm" id="np-go">+ 新建资源包</button>
+      </div>
+    </div>
+
+    <div class="card">
+      <h3>按条件筛出一套知识集 <span class="kv">设置筛选条件，预览命中结果后创建知识集</span></h3>
+      <div class="pk-filter">
+        <div class="cfg-row"><span class="cfg-label">目标包</span>
+          <select id="fl-pack">${(pd.packs||[]).filter(p => p.owner==='self').map(p =>
+            `<option value="${esc(p.pack_id)}">${esc(p.name)}</option>`).join('')}</select></div>
+        <div class="cfg-row"><span class="cfg-label">知识集名称</span>
+          <input id="fl-name" placeholder="如「docker 排障经验」"></div>
+        <div class="cfg-row"><span class="cfg-label">关键词</span>
+          <input id="fl-query" placeholder="标题或正文包含的关键词，可留空"></div>
+        <div class="cfg-row"><span class="cfg-label">类型</span>
+          <span class="pk-chips">${Object.entries(KIND_CN).map(([k,v]) =>
+            `<label class="pk-chip"><input type="checkbox" class="fl-kind" value="${k}">${v}</label>`).join('')}</span></div>
+        <div class="cfg-row"><span class="cfg-label">敏感度</span>
+          <span class="pk-chips">${[['public','公开'],['internal','内部'],['private','私密']].map(([k,v]) =>
+            `<label class="pk-chip"><input type="checkbox" class="fl-sens" value="${k}">${v}</label>`).join('')}</span></div>
+        <div class="cfg-row"><span class="cfg-label">标签</span>
+          <select id="fl-dim" style="width:110px"><option value="">（不限）</option></select>
+          <select id="fl-value" style="width:200px"><option value="">请先选择维度</option></select></div>
+        <div class="acts">
+          <button class="sm" id="fl-preview">预览命中</button>
+          <button class="sm primary" id="fl-create">创建知识集</button>
+        </div>
+      </div>
+      <div id="fl-out" class="kv" style="margin-top:10px"></div>
+    </div>
+
+    <div class="card">
+      <h3>导出 <span class="kv">只导出自己的包；他人导入的包不可导出</span></h3>
+      <div class="cfg-row"><span class="cfg-label">导出哪个包</span>
+        <select id="xp-pack">${(pd.packs||[]).filter(p => p.owner==='self').map(p =>
+          `<option value="${esc(p.pack_id)}">${esc(p.name)}（${p.n_atoms} 条）</option>`).join('')}</select></div>
+      <div class="cfg-row"><span class="cfg-label">包含哪些知识集</span>
+        <span id="xp-colls" class="pk-chips"></span></div>
+      <div class="cfg-row"><span class="cfg-label">文件名</span><input id="pack-name" placeholder="my-worker"></div>
+      <div class="cfg-row"><span class="cfg-label">作者</span><input id="pack-author" placeholder="可选"></div>
+      <div class="cfg-row" style="align-items:flex-start"><span class="cfg-label">属性</span>
+        <div class="pk-attrs" id="xp-attrs">${attrGroups(pd.attrs||[])}</div></div>
+      <label class="cfg-row"><span class="cfg-label">严格脱敏</span><input type="checkbox" id="pack-strict" checked></label>
+      <label class="cfg-row"><span class="cfg-label">包含能力画像</span><input type="checkbox" id="pack-profile" checked></label>
+      <label class="cfg-row"><span class="cfg-label">包含原始归档清单（谨慎）</span><input type="checkbox" id="pack-raw"></label>
+      <div class="acts"><button class="primary" id="pack-export">导出资源包</button>
+        <button id="pack-audit">重新体检</button></div>
+      <div id="pack-out" class="kv" style="margin-top:8px"></div>
+    </div>
+
+    <div class="card">
+      <h3>导入他人资源包 <span class="kv">上传后预览，确认后写入；导入后知识集默认关闭，可按需开启</span></h3>
+      <div class="acts" style="margin-top:10px">
+        <label class="primary" style="display:inline-flex;align-items:center;padding:6px 12px;
+          border-radius:6px;cursor:pointer;font-size:12px">
+          选择 .minime.zip 文件
+          <input type="file" id="pack-file" accept=".zip" style="display:none">
+        </label>
+        <span class="kv" id="pack-upload-out"></span>
+      </div>
+      <div class="kv" style="margin-top:8px">也可以手动把包放进 <code>store/packs</code>，刷新即可看到。</div>
+      ${fileRows ? `<table style="width:100%;border-collapse:collapse;font-size:12px;margin-top:10px">
+        <thead><tr style="color:var(--fg-3);text-align:left;border-bottom:1px solid var(--line)">
+          <th style="padding:6px 4px">包文件</th><th>操作</th></tr></thead>
+        <tbody>${fileRows}</tbody></table>` : '<div class="kv" style="margin-top:6px">本地还没有包文件</div>'}
+      <div id="pack-detail" class="kv" style="margin-top:10px"></div>
+    </div>
+
+    <div class="card">
+      <h3>脱敏体检 <span class="kv">扫描 ${audit.atoms||0} 条知识 · 导出时按下面的处理方式自动处理</span></h3>
+      <div style="margin-top:8px">${auditRows}</div>
+      <div class="acts" style="margin-top:8px">
+        <button class="sm ghost" id="sens-go">给新知识补判敏感度</button>
+        <span id="sens-out" class="kv"></span>
+      </div>
+    </div>`;
+
+  bindPacks(audit);
+}
+
+function attrGroups(attrs){
+  const groups = [['core','核心内容'],['facet','标签'],['source','来源'],['meta','可信度与时间'],['usage','使用反馈']];
+  const sensTag = p => p === 'sens'
+    ? '<span class="pk-badge off" style="margin-left:6px">敏感</span>'
+    : '<span class="pk-badge on" style="margin-left:6px">公开</span>';
+  return groups.map(([g, label]) => {
+    const items = attrs.filter(a => a.group === g);
+    if (!items.length) return '';
+    return `<div class="pk-attr-group"><div class="pk-attr-title">${label}</div>
+      ${items.map(a => `<label class="pk-attr" title="不勾选时：${esc(a.when_off)}">
+        <input type="checkbox" class="xp-attr" value="${a.key}" ${a.default?'checked':''}>
+        <span>${esc(a.label)}${sensTag(a.privacy)}</span>
+      </label>`).join('')}</div>`;
+  }).join('');
+}
+
+function bindPacks(audit){
+  const reload = () => loadPacks();
+
+  $$('[data-coll]').forEach(el => el.onchange = async () => {
+    const label = el.closest('.pk-coll')?.querySelector('.pk-coll-name')?.textContent || '知识集';
+    const r = await post('/api/packs', {action:'enable', collection_id:el.dataset.coll,
+      enabled:el.checked});
+    if (r.error){ el.checked = !el.checked; return toast(r.error, 'error'); }
+    // 就地更新徽章与提示，不整页重绘：开关的即时感来自「不用等刷新」
+    const card = el.closest('.pk-card');
+    if (card){
+      const pack = (PACKDATA.packs||[]).find(p =>
+        (p.collections||[]).some(c => c.collection_id === el.dataset.coll));
+      if (pack){
+        pack.collections.find(c => c.collection_id === el.dataset.coll).enabled = el.checked ? 1 : 0;
+        pack.enabled_collections = pack.collections.filter(c => c.enabled).length;
+        const badge = card.querySelector('.pk-badge.on, .pk-badge.off');
+        if (badge){
+          const on = pack.enabled_collections;
+          badge.className = 'pk-badge ' + (on ? 'on' : 'off');
+          badge.textContent = on ? `开启 ${on}/${pack.collections.length}` : '全部关闭';
+        }
+      }
+    }
+    const anyOn = (PACKDATA.packs||[]).some(p => (p.collections||[]).some(c => c.enabled));
+    toast(`${el.checked ? '已开启' : '已关闭'}「${label}」`
+      + (anyOn ? '' : '；当前无已开启知识集，检索不限制范围'), 'ok');
+  });
+  $$('[data-new-coll]').forEach(b => b.onclick = async () => {
+    const name = await promptBox({title:'新建知识集', placeholder:'如「docker 排障经验」', ok:'创建'});
+    if (!name) return;
+    const r = await post('/api/packs', {action:'create_collection',
+      pack_id:b.dataset.newColl, name});
+    if (r.error) return toast(r.error, 'error');
+    toast(`已创建知识集「${name}」（当前为空）；用下方筛选条件向其中添加内容`, 'ok');
+    reload();
+  });
+  $$('[data-coll-drop]').forEach(b => b.onclick = async () => {
+    const ok = await confirmBox({title:`移除知识集「${b.dataset.collTitle}」？`,
+      text:'知识本身不会删除，仍保留在默认包里。', ok:'移除', danger:true});
+    if (!ok) return;
+    const r = await post('/api/packs', {action:'drop_collection',
+      collection_id:b.dataset.collDrop});
+    if (r.error) return toast(r.error, 'error');
+    toast('已移除', 'ok');
+    reload();
+  });
+  document.querySelectorAll('[data-del-pack]').forEach(b => b.onclick = async () => {
+    const ok = await confirmBox({title:`删除资源包「${b.dataset.name}」？`,
+      text:'知识本身保留在默认包里，只删除这个包的分组关系。', ok:'删除', danger:true});
+    if (!ok) return;
+    const r = await post('/api/packs', {action:'delete_pack', pack_id:b.dataset.delPack});
+    if (r.error) return toast(r.error, 'error');
+    toast('已删除资源包，知识仍在默认包里', 'ok');
+    reload();
+  });
+  $$('[data-coll-view]').forEach(b => b.onclick = () => withBusy(b, '读取中…', async () => {
+    const r = await post('/api/packs', {action:'collection_atoms', collection_id:b.dataset.collView});
+    const items = r.items || [];
+    $('#pack-detail').innerHTML = `<div class="card" style="margin-top:8px">
+      <h3>${esc(b.dataset.collTitle)} <span class="kv">前 ${items.length} 条</span></h3>
+      ${items.map(a => `<div class="kvrow"><span>${KIND_CN[a.kind]||a.kind} · ${esc(SENS_CN[a.sensitivity]||a.sensitivity||'')}</span>
+        <span>${esc(a.title)} <span class="kv">${fmtT(a.created_at)}</span></span></div>`).join('') || '<div class="kv">空的</div>'}
+    </div>`;
+    $('#pack-detail').scrollIntoView({block:'nearest', behavior:'smooth'});
+  }));
+
+  // ---- 筛选建集
+  const dims = ['project','tech','topic','scene','activity'];
+  $('#fl-dim').innerHTML += dims.map(d => `<option value="${d}">${DIM_CN[d]||d}</option>`).join('');
+  get('/api/facets').then(ft => {
+    if ($('#fl-dim') === null) return;
+    const fillVals = () => {
+      const dim = $('#fl-dim').value;
+      const vals = (ft[dim] || []).slice(0, 300);
+      $('#fl-value').innerHTML = '<option value="">（不限）</option>' + vals.map(v =>
+        `<option value="${esc(v.value)}">${esc(v.value)}（${v.count}）</option>`).join('');
+    };
+    $('#fl-dim').onchange = fillVals;
+    $('#fl-dim').value = 'project';
+    fillVals();
+  });
+  const collectFilter = () => ({
+    query: $('#fl-query').value.trim(),
+    kinds: $$('.fl-kind:checked').map(x => x.value),
+    sensitivity: $$('.fl-sens:checked').map(x => x.value),
+    facets: ($('#fl-dim').value && $('#fl-value').value)
+      ? [{dim:$('#fl-dim').value, value:$('#fl-value').value}] : []});
+  $('#fl-preview').onclick = async e => withBusy(e.target, '筛选中…', async () => {
+    const r = await post('/api/packs', {action:'preview', filters:collectFilter()});
+    if (r.error) return ($('#fl-out').innerHTML = `<span style="color:var(--bad)">${esc(r.error)}</span>`);
+    const s = r.sensitivity || {};
+    $('#fl-out').innerHTML = `<b>命中 ${r.total} 条</b>
+      <span class="kv">公开 ${s.public||0} · 内部 ${s.internal||0} · 私密 ${s.private||0}</span>
+      ${r.total ? `<div style="margin-top:6px">${(r.samples||[]).map(a => `<div>· ${KIND_CN[a.kind]||a.kind}
+        ${esc(a.title)} <span class="kv">${esc(SENS_CN[a.sensitivity]||'')}</span></div>`).join('')}
+        ${r.total > (r.samples||[]).length ? `<div class="kv">…只显示前 ${(r.samples||[]).length} 条</div>` : ''}</div>`
+      : '<div class="kv" style="margin-top:6px">没有命中，放宽条件再试</div>'}`;
+  });
+  // 条件变化时清掉上一次的预览结果，避免拿旧数字建集
+  $$('.fl-kind, .fl-sens').forEach(x => x.onchange = () => {
+    if ($('#fl-out')) $('#fl-out').innerHTML = '';
+  });
+  $('#fl-name').oninput = () => { if ($('#fl-out')) $('#fl-out').innerHTML = ''; };
+  $('#fl-create').onclick = async e => {
+    const name = $('#fl-name').value.trim();
+    if (!name){ $('#fl-name').focus(); return toast('请先填写知识集名称', 'warn'); }
+    await withBusy(e.target, '创建中…', async () => {
+      const r = await post('/api/packs', {action:'create_collection', pack_id:$('#fl-pack').value,
+        name, filters:collectFilter()});
+      if (r.error){ $('#fl-out').innerHTML = `<span style="color:var(--bad)">${esc(r.error)}</span>`; return; }
+      toast(`已创建「${name}」，纳入 ${r.filled||0} 条`, 'ok');
+      reload();
+      setTimeout(() => {
+        const el = $('#pack-hint'); if (el) el.textContent = `已创建「${name}」`;
+      }, 300);
+    });
+  };
+
+  $('#np-go').onclick = async e => {
+    const name = $('#np-name').value.trim();
+    if (!name){ $('#np-name').focus(); return toast('请先填写资源包名称', 'warn'); }
+    await withBusy(e.target, '创建中…', async () => {
+      const r = await post('/api/packs', {action:'create_pack', name,
+        author:$('#np-author').value.trim()});
+      if (r.error) return toast(r.error, 'error');
+      toast(`已创建资源包「${name}」，接下来为它创建知识集`, 'ok');
+      reload();
+    });
+  };
+
+  // ---- 导出：选包 -> 刷新知识集与默认勾选
+  const refreshColls = () => {
+    const pid = $('#xp-pack').value;
+    const p = (PACKDATA.packs||[]).find(x => x.pack_id === pid);
+    const colls = p ? (p.collections||[]) : [];
+    $('#xp-colls').innerHTML = colls.map(c => `<label class="pk-chip">
+      <input type="checkbox" class="xp-coll" value="${esc(c.collection_id)}" checked>${esc(c.name)}（${c.n_atoms}）</label>`).join('')
+      || '<span class="kv">该包还没有知识集</span>';
+  };
+  if ($('#xp-pack')) { $('#xp-pack').onchange = refreshColls; refreshColls(); }
+
+  $('#pack-export').onclick = async e => {
+    const pid = $('#xp-pack') ? $('#xp-pack').value : '';
+    const colls = $$('.xp-coll:checked').map(x => x.value);
+    if (!colls.length){ $('#xp-colls').scrollIntoView({block:'center'}); return toast('请至少选择一个知识集', 'warn'); }
+    const attrs = {};
+    $$('.xp-attr').forEach(x => attrs[x.value] = x.checked);
+    const hidden = $$('.xp-attr:not(:checked)').length;
+    if (hidden){
+      const ok = await confirmBox({title:`有 ${hidden} 个属性未勾选`,
+        text:'未勾选的敏感属性会在导出时被隐去或脱敏（例如来源引用、项目标签、精确时间）。',
+        ok:'继续导出'});
+      if (!ok) return;
+    }
+    await withBusy(e.target, '导出中…', async () => {
+      const r = await post('/api/pack', {action:'export',
+        name: $('#pack-name').value.trim() || 'my-worker',
+        author: $('#pack-author').value.trim(),
+        pack_id: pid, collections: colls, attrs,
+        with_profile: $('#pack-profile').checked,
+        loose: !$('#pack-strict').checked,
+        include_raw: $('#pack-raw').checked});
+      if (r.error){ $('#pack-out').innerHTML = `<span style="color:var(--bad)">${esc(r.error)}</span>`; return; }
+      const pr = r.privacy || {};
+      const residual = pr.residual_risk || [];
+      $('#pack-out').innerHTML = `<span style="color:var(--ok)">已导出</span> · ${r.atoms} 条知识 · ${r.decisions} 条决策样例 · ${r.size_kb} KB
+        · ${pr.strict ? '严格脱敏' : '基础脱敏'}
+        ${residual.length ? `<br><span style="color:var(--warn)">! 仍有残留：${residual.map(esc).join('、')}；建议启用「严格脱敏」或取消勾选相关属性后重新导出</span>`
+                          : `<br><span class="kv">自查通过：包内未发现路径/密钥/邮箱/手机号</span>`}
+        ${(r.hidden_attrs||[]).length ? `<br><span class="kv">已隐去：${r.hidden_attrs.map(esc).join('、')}</span>` : ''}
+        <br><a href="/api/pack/download?file=${encodeURIComponent(r.pack.split('/').pop())}"><button class="sm primary">下载这个包</button></a>`;
+      toast('导出完成，可以下载了', 'ok');
+      reload();
+    });
+  };
+  $('#pack-audit').onclick = async () => { $('#pack-out').textContent = '体检中…'; reload(); };
+  $('#sens-go').onclick = async () => {
+    const r = await post('/api/packs', {action:'assign_sensitivity'});
+    $('#sens-out').textContent = r.error ? r.error : `公开 ${r.public} · 内部 ${r.internal} · 私密 ${r.private}`;
+  };
+
+  // ---- 导入
+  $('#pack-file').onchange = async e => {
+    const f = e.target.files[0];
+    if (!f) return;
+    $('#pack-upload-out').textContent = `上传中…（${(f.size/1024).toFixed(0)} KB）`;
+    const fd = new FormData();
+    fd.append('file', f, f.name);
+    const r = await fetch('/api/pack', {method:'POST', body:fd}).then(x => x.json())
+      .catch(() => ({error: '上传中断，请重试'}));
+    if (r.error || !r.file){
+      $('#pack-upload-out').innerHTML = `<span style="color:var(--bad)">上传失败：${esc(r.error || '未知错误')}</span>`;
+      return;
+    }
+    $('#pack-upload-out').innerHTML = `<span style="color:var(--ok)">已上传</span> ${esc(r.file)}`;
+    await loadPacks();
+    const pre = await post('/api/pack', {action:'inspect', file:r.file});
+    if (pre.manifest) showPackPreview(r.file, pre.manifest, pre.size_kb);
+    $('#pack-detail').scrollIntoView({block:'nearest', behavior:'smooth'});
+  };
+  $$('[data-inspect]').forEach(b => b.onclick = () => withBusy(b, '读取中…', async () => {
+    const r = await post('/api/pack', {action:'inspect', file:b.dataset.inspect});
+    if (r.error){ $('#pack-detail').innerHTML = `<span style="color:var(--bad)">${esc(r.error)}</span>`; return; }
+    showPackPreview(b.dataset.inspect, r.manifest, r.size_kb);
+    $('#pack-detail').scrollIntoView({block:'nearest', behavior:'smooth'});
+  }));
+  $$('[data-import]').forEach(b => b.onclick = () => importPackFlow(b.dataset.import));
+  $$('[data-delete]').forEach(b => b.onclick = async () => {
+    const ok = await confirmBox({title:`删除包文件「${b.dataset.delete}」？`,
+      text:'只删本地 zip，已经导入的知识不受影响。', ok:'删除', danger:true});
+    if (!ok) return;
+    const r = await post('/api/pack', {action:'delete', file:b.dataset.delete});
+    if (r.error) return toast(r.error, 'error');
+    toast('已删除包文件', 'ok');
+    reload();
+  });
+}
+
+// 预览 -> 确认导入（导入后默认关闭）
+function showPackPreview(file, m, sizeKb){
+  const cov = m.coverage || {};
+  const prv = m.privacy || {};
+  const colls = m.collections || [];
+  $('#pack-detail').innerHTML = `<div class="card" style="margin-top:8px">
+    <h3>包预览：${esc(m.name || file)}</h3>
+    <div class="kvrow"><span>规模</span><span>${cov.atoms ?? '—'} 条知识 · ${colls.length} 套知识集 · ${sizeKb ?? '—'} KB</span></div>
+    <div class="kvrow"><span>作者 / 创建</span><span>${esc(m.author || '匿名')} · ${fmtT(m.created_at)} · ${esc(m.version || '')}</span></div>
+    <div class="kvrow"><span>知识类型</span><span>${Object.entries(cov.kinds||{}).map(([k,v]) => `${KIND_CN[k]||k} ${v}`).join(' · ') || '—'}</span></div>
+    ${colls.length ? `<div class="kvrow"><span>知识集</span><span>${colls.map(c => `${esc(c.name)}（${c.n_atoms ?? '—'}）`).join(' · ')}</span></div>` : ''}
+    <div class="kvrow"><span>隐私声明</span><span>${prv.strict ? '严格脱敏' : '基础脱敏'}
+      ${(prv.residual_risk||[]).length ? `<span style="color:var(--warn)">（残留：${prv.residual_risk.map(esc).join('、')}）</span>` : '（自查通过）'}</span></div>
+    ${(prv.hidden||[]).length ? `<div class="kvrow"><span>对方隐去</span><span class="kv">${prv.hidden.map(h => esc(h.label)).join('、')}</span></div>` : ''}
+    <div class="acts" style="margin-top:12px">
+      <label class="cfg-row" style="margin:0"><span class="cfg-label">导入后立即开启</span>
+        <input type="checkbox" id="imp-enable"></label>
+      <button class="primary sm" id="imp-go">导入为资源包</button>
+    </div>
+    <div class="kv" style="margin-top:6px">导入后它成为独立的「他人导入」资源包：可开启使用、不可再次导出。</div>
+  </div>`;
+  $('#imp-go').onclick = () => importPackFlow(file);
+}
+
+async function importPackFlow(file){
+  const el = $('#imp-enable');
+  const enable = el ? el.checked : false;
+  const btn = $('#imp-go');
+  await withBusy(btn, '导入中…', async () => {
+    const pre = await post('/api/pack', {action:'import', file, dry_run:true});
+    if (pre.error){ $('#pack-detail').innerHTML = `<span style="color:var(--bad)">${esc(pre.error)}</span>`; return; }
+    const ok = await confirmBox({
+      title: `导入「${pre.pack}」？`,
+      text: `${pre.atoms} 条知识、${(pre.collections||[]).length} 套知识集。导入后${enable ? '立即开启' : '默认关闭（可稍后开启）'}，成为独立的「他人导入」资源包。`,
+      ok: '导入'});
+    if (!ok) return;
+    const r = await post('/api/pack', {action:'import', file, dry_run:false, enable});
+    if (r.error){
+      $('#pack-detail').innerHTML = `<span style="color:var(--bad)">${esc(r.error)}</span>`;
+      return toast(r.error, 'error');
+    }
+    toast(`导入完成，新增 ${r.imported} 条`, 'ok');
+    $('#pack-detail').innerHTML = `<span style="color:var(--ok)">导入完成</span> · 新增 ${r.imported} 条 · 全库 ${r.total_atoms} 条
+       <div style="margin-top:8px">资源包列表已出现「${esc(r.pack)}」，开启需要使用的知识集即可。</div>`;
+    loadStats();
+    loadPacks();
+  });
+}
+
+// ---------------- logs（运行日志）
+async function loadLogs(){
+  const level = state.logLevel || 'all';
+  const d = await get(`/api/logs?level=${level}&limit=200&q=${encodeURIComponent(state.logQ||'')}`);
+  const rows = (d.items||[]).map(r => {
+    const color = r.level === 'error' ? 'var(--bad)' : r.level === 'warn' ? 'var(--warn)' : 'var(--ok)';
+    const t = new Date((r.ts||0)*1000).toLocaleString('zh-CN');
+    const brief = Object.entries(r).filter(([k]) => !['id','ts','level','event'].includes(k))
+      .map(([k,v]) => `${k}=${typeof v === 'object' ? JSON.stringify(v) : v}`).join(' · ').slice(0, 160);
+    return `<tr data-log="${esc(r.id)}" class="logrow">
+      <td style="padding:5px 4px;color:${color}">● ${LV_CN[r.level]||r.level}</td>
+      <td><b>${esc(r.event)}</b><div class="kv">${esc(brief)}</div></td>
+      <td class="kv" style="white-space:nowrap">${t}</td></tr>`;
+  }).join('');
+  const lv = (state.logLevel || 'all');
+  $('#view').innerHTML = `<h2>运行日志 <span class="tabs-hint">排查问题时优先查看；「错误」筛选可定位失败操作</span><br><span class="kv">${d.stats.entries} 条（错误 ${d.stats.errors}） ·
+    只记录业务动作和采集结果，面板轮询不写入</span></h2>
+    <div class="acts" style="margin-bottom:10px">
+      <span class="seg">${['all','info','warn','error'].map(l => `<button data-level="${l}" class="${lv===l?'on':''}">${
+        l==='all'?'全部':l==='info'?'普通':l==='warn'?'警告':'错误'}</button>`).join('')}</span>
+      <input type="text" id="log-q" placeholder="按事件名/内容过滤，回车生效" value="${esc(state.logQ||'')}"
+        style="width:280px">
+      <button id="log-refresh">刷新</button>
+      <span class="kv" style="margin-left:10px">文件 ${esc(d.stats.path)} · 上限 ${d.stats.max} 条</span>
+    </div>
+    <div class="card" style="padding:0">${rows ? `<table style="width:100%;border-collapse:collapse;font-size:12px">${rows}</table>`
+      : `<div class="empty">没有匹配的日志。执行采集或保存设置后会生成记录。</div>`}</div>
+    <pre id="log-detail" class="kv" style="display:none;white-space:pre-wrap;margin-top:10px"></pre>`;
+  document.querySelectorAll('[data-level]').forEach(b => b.onclick = () => {
+    state.logLevel = b.dataset.level; loadLogs();
+  });
+  const q = $('#log-q');
+  if (q) q.onkeydown = e => {
+    if (e.key === 'Enter'){ state.logQ = q.value.trim(); loadLogs(); }
+  };
+  if (q) q.onkeyup = e => {
+    // keydown 时输入法/回车可能还没提交，keyup 再兜一次，避免「要按两次」
+    if (e.key === 'Enter' && state.logQ !== q.value.trim()){
+      state.logQ = q.value.trim(); loadLogs();
+    }
+  };
+  $('#log-refresh').onclick = loadLogs;
+  document.querySelectorAll('[data-log]').forEach(tr => tr.onclick = async () => {
+    const r = await get('/api/log?id=' + encodeURIComponent(tr.dataset.log));
+    const el = $('#log-detail');
+    el.style.display = 'block';
+    el.textContent = JSON.stringify(r, null, 2);
+  });
+}
+
+// ---------------- archive
+async function loadArchive(){
+  const s = await get('/api/stats');
+  $('#view').innerHTML = `<h2>归档 <span class="tabs-hint">原始数据都在这里；即使知识库被删，也能用 minime restore 重建</span></h2>
+  <div class="card"><h3>原始归档（内容寻址，不可变）</h3>
+    <div class="kv" style="margin-top:8px">
+      对象数 <b>${s.raw_objects}</b> · 总大小 <b>${fmtSize(s.raw_bytes)}</b><br>
+      位置 <code>minime/store/raw/&lt;yyyy-mm-dd&gt;/&lt;sha256&gt;.json</code><br>
+      索引 <code>minime/store/manifest.db</code> 表 <code>raw_object</code>
+    </div></div>
+  <div class="card"><h3>会话轨迹</h3>
+    <div class="kv" style="margin-top:8px">
+      快照会话 <b>${s.snapshot_sessions}</b> · 有效轮次 <b>${s.turns}</b> · 文件变更 <b>${s.file_changes}</b><br>
+      来源 <code>~/Library/Application Support/Trae/ModularData/ai-agent/snapshot/&lt;sid&gt;/v2/.git</code>
+    </div></div>
+  <div class="card"><h3>知识库</h3>
+    <div class="kv" style="margin-top:8px">
+      知识 <b>${s.atoms}</b> 条 · 图谱实体 <b>${s.entities}</b> · 关系 <b>${s.relations}</b> · 反馈事件 <b>${s.usage_events}</b><br>
+      位置 <code>minime/store/kb.db</code>
+    </div></div>`;
+}
+
+// ---------------- collectors
+async function loadCollectors(){
+  const d = await get('/api/collectors');
+  const rows = (d.adapters||[]).map(a => {
+    const ok = a.health && a.last_status === 'ok';
+    const color = ok ? 'var(--ok)' : (a.last_status === 'unavailable' ? 'var(--warn)' : 'var(--bad)');
+    const last = a.last_run ? new Date(a.last_run*1000).toLocaleString('zh-CN') : '未运行';
+    const bad = a.last_status === 'unavailable' || a.last_status === 'error' || !a.health;
+    return `<tr>
+      <td><b>${esc(a.label||a.adapter)}</b>
+        <div class="kv" title="${esc(a.adapter)}">${esc(a.description)}</div>
+        ${bad && a.fix_hint ? `<div class="kv" style="color:var(--warn)">→ ${esc(a.fix_hint)}</div>` : ''}</td>
+      <td><span style="color:${color}">●</span> ${COL_ST_CN[a.last_status]||esc(a.last_status||a.detail||'—')}
+        ${a.last_error?`<div class="kv">${esc(a.last_error.slice(0,120))}</div>`:''}
+        ${!a.health && a.detail ? `<div class="kv">${esc(a.detail)}</div>`:''}</td>
+      <td class="kv">每 ${fmtDur(a.interval_s)}<br>${a.next_in_s?`${fmtDur(a.next_in_s)} 后再跑`:'待运行'}</td>
+      <td class="kv">${a.objects} 份 / ${fmtSize(a.bytes)}</td>
+      <td class="kv">${last}<br>${a.runs} 次${a.fails?` · 失败 ${a.fails}`:''}</td>
+      <td><button class="sm" data-run="${esc(a.adapter)}" data-label="${esc(a.label||a.adapter)}">立即采集</button></td>
+    </tr>`;
+  }).join('');
+  $('#view').innerHTML = `<h2>采集源 <span class="tabs-hint">采集源异常时，行内会给出处理建议</span><br><span class="kv">归档 ${d.archive.objects} 份 / ${fmtSize(d.archive.bytes)}
+    · 采集周期可在「设置 → 定时采集 · 各源周期」调整</span></h2>
+    <div class="card"><table style="width:100%;border-collapse:collapse;font-size:12px">
+      <thead><tr style="color:var(--fg-3);text-align:left;border-bottom:1px solid var(--line)">
+        <th style="padding:6px 4px">信息源</th><th>状态</th><th>周期</th><th>归档</th><th>最近</th><th>操作</th></tr></thead>
+      <tbody>${rows}</tbody></table></div>
+    <div class="acts" style="margin-top:12px"><button class="primary" id="run-all">全部立即采集</button>
+      <span class="kv" style="margin-left:10px">采集仅获取原始数据，清洗后才会生成知识 → 在「处理进度」执行「更新知识库」</span></div>`;
+  $$('[data-run]').forEach(b => b.onclick = () => withBusy(b, '提交中…', async () => {
+    const r = await post('/api/collectors', {adapter: b.dataset.run});
+    if (r.error) return toast(r.error, 'error');
+    toast(`已开始采集「${b.dataset.label}」，完成后请在「处理进度」清洗`, 'ok');
+    pollJobs();
+    setTimeout(loadCollectors, 1200);
+  }));
+  if ($('#run-all')) $('#run-all').onclick = e => withBusy(e.target, '提交中…', async () => {
+    const r = await post('/api/collectors', {});
+    if (r.error) return toast(r.error, 'error');
+    toast('全部采集源已开始采集', 'ok');
+    pollJobs();
+    setTimeout(loadCollectors, 1200);
+  });
+}
+
+// ---------------- chat（基于知识库的多轮对话）
+const CHAT = {sid: '', sessions: [], busy: false};
+const PROMPTS = ['我有哪些架构决策？', '这个项目踩过什么坑？', '我在 macOS 兼容上有什么约定？', '总结我的技术偏好'];
+
+async function loadChat(){
+  const d = await get('/api/chat');
+  CHAT.sessions = d.sessions || [];
+  document.body.classList.add('chat-mode');
+  $('#view').innerHTML = `<div class="chat-wrap">
+    <div class="chat-list">
+      <button class="primary" id="chat-new" style="width:100%;margin-bottom:8px">＋ 新对话</button>
+      <div id="chat-sess"></div>
+    </div>
+    <div class="chat-main">
+      <div class="chat-head">
+        <span class="ttl" id="chat-ttl">新对话</span>
+        <span class="kv" id="chat-meta">${esc(d.model || '')}</span>
+        <span style="flex:1"></span>
+        <button class="sm ghost" id="chat-rename">重命名</button>
+      </div>
+      <div class="chat-body" id="chat-body"></div>
+      <div class="chat-foot">
+        <textarea id="chat-q" rows="1" placeholder="基于知识库提问。Enter 发送，Shift+Enter 换行"></textarea>
+        <button class="primary" id="chat-send">发送</button>
+      </div>
+    </div>
+  </div>`;
+  renderChatSessions();
+  $('#chat-new').onclick = async () => {
+    // 新建的会话是空的，前端先进入空状态（建议问题），首次提问时再真正落库
+    CHAT.sid = '';
+    syncURL();
+    renderChatSessions();
+    await openChat('');
+    $('#chat-q').focus();
+  };
+  $('#chat-rename').onclick = async () => {
+    if (!CHAT.sid) return toast('请先创建对话', 'warn');
+    const t = await promptBox({title:'重命名对话', value:$('#chat-ttl').textContent, ok:'保存'});
+    if (!t) return;
+    const r = await post('/api/chat', {action:'rename', session_id:CHAT.sid, title:t});
+    if (r.error) return toast(r.error, 'error');
+    $('#chat-ttl').textContent = t; loadChatListOnly();
+  };
+  const q = $('#chat-q');
+  q.onkeydown = e => {
+    if (e.key === 'Enter' && !e.shiftKey){ e.preventDefault(); sendChat(); }
+  };
+  q.oninput = () => { q.style.height = 'auto'; q.style.height = Math.min(160, q.scrollHeight) + 'px'; };
+  $('#chat-send').onclick = sendChat;
+
+  if (!CHAT.sid && CHAT.sessions.length) CHAT.sid = CHAT.sessions[0].id;
+  await openChat(CHAT.sid);
+  if ($('#chat-q')) $('#chat-q').focus();
+}
+
+async function loadChatListOnly(){
+  const d = await get('/api/chat');
+  CHAT.sessions = d.sessions || [];
+  renderChatSessions();
+}
+
+function renderChatSessions(){
+  const el = $('#chat-sess');
+  if (!el) return;
+  el.innerHTML = CHAT.sessions.length ? CHAT.sessions.map(s => `
+    <div class="chat-item ${s.id === CHAT.sid ? 'on' : ''}" data-sid="${esc(s.id)}">
+      <span class="t" title="${esc(s.title)}">${esc(s.title)}</span>
+      <button class="del" data-del="${esc(s.id)}" title="删除">×</button>
+    </div>`).join('') : `<div class="kv" style="padding:8px">还没有对话</div>`;
+  el.querySelectorAll('[data-sid]').forEach(it => it.onclick = e => {
+    if (e.target.dataset.del) return;
+    if (CHAT.busy) return toast('正在回答，本轮结束后可切换会话', 'warn');
+    CHAT.sid = it.dataset.sid; syncURL(); openChat(CHAT.sid);
+    renderChatSessions();
+  });
+  el.querySelectorAll('[data-del]').forEach(b => b.onclick = async e => {
+    e.stopPropagation();
+    const ok = await confirmBox({title:'删除这段对话？', text:'聊天记录会一并删除，知识库不受影响。',
+      ok:'删除', danger:true});
+    if (!ok) return;
+    const r = await post('/api/chat', {action:'delete', session_id:b.dataset.del});
+    if (r.error) return toast(r.error, 'error');
+    if (CHAT.sid === b.dataset.del) CHAT.sid = '';
+    await loadChatListOnly();
+    if (!CHAT.sid) openChat(''); else renderChatSessions();
+  });
+}
+
+async function openChat(sid){
+  const body = $('#chat-body');
+  if (!body) return;
+  if (!sid){
+    body.innerHTML = `<div class="chat-empty">
+      <div style="font-size:15px;color:var(--fg)">向知识库提问</div>
+      <div style="font-size:12px">回答仅依据已采集的知识，并标注来源；点击来源可查看原文。</div>
+      <div class="prompts">${PROMPTS.map(p => `<button class="sm" data-p="${esc(p)}">${esc(p)}</button>`).join('')}</div>
+    </div>`;
+    body.querySelectorAll('[data-p]').forEach(b => b.onclick = () => {
+      $('#chat-q').value = b.dataset.p; sendChat();
+    });
+    $('#chat-ttl').textContent = '新对话';
+    return;
+  }
+  const s = await get('/api/chat?id=' + encodeURIComponent(sid));
+  if (s.error){ body.innerHTML = `<div class="empty">${esc(s.error)}</div>`; return; }
+  CHAT.sid = s.id;
+  $('#chat-ttl').textContent = s.title;
+  $('#chat-meta').textContent = `${s.model || ''} · ${s.n_turns} 轮`;
+  body.innerHTML = s.messages.map(m => msgHTML(m)).join('');
+  bindRefs(body);
+  body.scrollTop = body.scrollHeight;
+}
+
+// 对话正文轻量 Markdown：模型输出里的 **粗体**、`代码`、- 列表、[n] 引用标记
+function mdLite(text){
+  let h = esc(text);
+  h = h.replace(/`([^`\n]+)`/g, '<code>$1</code>');
+  h = h.replace(/\*\*([^*\n]+)\*\*/g, '<strong>$1</strong>');
+  h = h.replace(/^#{1,4}\s+(.+)$/gm, '<div class="md-h">$1</div>');
+  h = h.replace(/^[-*]\s+(.+)$/gm, '<div class="md-li">$1</div>');
+  h = h.replace(/^\d+\.\s+(.+)$/gm, '<div class="md-li md-ol">$1</div>');
+  h = h.replace(/\[\d+\]/g, m => `<span class="md-cite">${m}</span>`);
+  return h;
+}
+
+function msgHTML(m){
+  const isUser = m.role === 'user';
+  const refs = (m.refs || []).map((r, i) => `<div class="ref" data-atom="${esc(r.atom_id)}">
+      <span class="n">[${i+1}]</span><span>${mdLite(r.title)}</span></div>`).join('');
+  const content = isUser ? esc(m.content) : mdLite(m.content);
+  return `<div class="msg ${isUser ? 'user' : 'assistant'}">
+    <div class="avatar">${isUser ? '你' : '分身'}</div>
+    <div class="bubble"><div class="text">${content}</div>
+      ${refs ? `<div class="refs">${refs}</div>` : ''}
+      ${m.elapsed_s ? `<div class="kv" style="margin-top:6px">${m.elapsed_s}s</div>` : ''}
+    </div></div>`;
+}
+
+function bindRefs(root){
+  root.querySelectorAll('.ref').forEach(el => el.onclick = () => showAtom(el.dataset.atom));
+}
+
+// 对话里的来源点击 -> 复用知识详情抽屉
+async function showAtom(atomId){
+  const d = await get('/api/atoms?limit=200');
+  const a = (d.items || []).find(x => x.atom_id === atomId);
+  if (a){ ATOMS = [a]; openDetail(atomId); return; }
+  // 不在前 200 条里就直接按标题搜一次
+  const r = await get('/api/chat?id=' + encodeURIComponent(CHAT.sid));
+  const ref = ((r.messages || []).flatMap(m => m.refs || []).find(x => x.atom_id === atomId));
+  if (ref){
+    const hit = await get('/api/atoms?q=' + encodeURIComponent(ref.title) + '&limit=5');
+    const found = (hit.items || []).find(x => x.atom_id === atomId) || (hit.items || [])[0];
+    if (found){ ATOMS = [found]; openDetail(found.atom_id); }
+  }
+}
+
+async function sendChat(){
+  const q = $('#chat-q');
+  const text = q.value.trim();
+  if (!text) return;
+  if (CHAT.busy) return toast('上一轮回答尚未结束，请稍后', 'warn');
+  const body = $('#chat-body');
+  if (!CHAT.sid){
+    const r = await post('/api/chat', {action:'new'});
+    if (r.error || !r.session_id) return toast(r.error || '新建对话失败', 'error');
+    CHAT.sid = r.session_id;
+    body.innerHTML = '';
+    syncURL();
+  }
+  CHAT.busy = true;
+  q.value = ''; q.style.height = 'auto';
+  const send = $('#chat-send');
+  send.disabled = true; send.textContent = '思考中…';
+  body.insertAdjacentHTML('beforeend', msgHTML({role:'user', content:text}));
+  const pending = document.createElement('div');
+  pending.className = 'msg assistant';
+  pending.innerHTML = `<div class="avatar">分身</div><div class="bubble">
+    <div class="typing"><i></i><i></i><i></i> 正在检索知识并生成回答…</div></div>`;
+  body.appendChild(pending);
+  body.scrollTop = body.scrollHeight;
+
+  const r = await post('/api/chat', {action:'ask', session_id:CHAT.sid, question:text});
+  pending.remove();
+  if (r.error){
+    body.insertAdjacentHTML('beforeend', `<div class="msg assistant"><div class="avatar">分身</div>
+      <div class="bubble"><div class="text" style="color:var(--bad)">回答失败：${esc(r.error)}</div>
+      <div class="acts" style="margin-top:8px"><button class="sm" id="retry-ask">重新提问</button></div></div></div>`);
+    const rb = $('#retry-ask');
+    if (rb) rb.onclick = () => { q.value = text; sendChat(); };
+  } else {
+    body.insertAdjacentHTML('beforeend', msgHTML(r));
+    bindRefs(body);
+  }
+  body.scrollTop = body.scrollHeight;
+  CHAT.busy = false;
+  send.disabled = false; send.textContent = '发送';
+  q.focus();
+  const s = await get('/api/chat?id=' + encodeURIComponent(CHAT.sid));
+  if (!s.error){
+    $('#chat-ttl').textContent = s.title;
+    $('#chat-meta').textContent = `${s.model || ''} · ${s.n_turns} 轮`;
+  }
+  loadChatListOnly();
+}
+
+// ---------------- router
+const VIEWS = {
+  chat: loadChat, progress: loadProgress, atoms: loadAtoms, graph: loadGraph,
+  profile: loadProfile, workspaces: loadWorkspaces, settings: loadSettings,
+  collectors: loadCollectors, packs: loadPacks, logs: loadLogs, archive: loadArchive,
+};
+
+// 只画当前视图，不重置导航与侧栏（供后退/前进与局部刷新复用）
+function routeView(){
+  const fn = VIEWS[state.view] || loadArchive;
+  viewLoading();
+  Promise.resolve().then(fn).catch(e => viewError(e, routeView));
+}
+
+// ---------------- 顶部导航：主项常驻，次要项收在「更多」里
+const NAV_MORE = new Set(['progress', 'workspaces', 'collectors', 'logs', 'settings', 'archive']);
+function setNavMore(open, remember){
+  $('nav').classList.toggle('more-open', open);
+  $('#nav-more-btn').setAttribute('aria-expanded', String(open));
+  $('#nav-more-t').textContent = open ? '收起' : '更多';
+  // 只记住用户主动的展开/收起；进到次要页时的自动展开不写入偏好
+  if (remember) try { localStorage.setItem('navMore', open ? '1' : '0'); } catch(e){ /* 隐私模式忽略 */ }
+}
+$('#nav-more-btn').onclick = () => setNavMore(!$('nav').classList.contains('more-open'), true);
+
+function renderView(){
+  if (window._stopGraph) { window._stopGraph(); window._stopGraph = null; }
+  closeDrawers();
+  document.body.classList.toggle('chat-mode', state.view === 'chat');
+  // 当前页在次要项里时自动展开，避免「看不到自己在哪一页」
+  if (NAV_MORE.has(state.view)) setNavMore(true);
+  $$('nav button[data-view]').forEach(b => {
+    const on = b.dataset.view === state.view;
+    b.classList.toggle('on', on);
+    b.setAttribute('aria-current', on ? 'page' : 'false');
+  });
+  // 窄屏时导航可横向滚动，把当前项滚进可见区
+  $('nav button[data-view].on')?.scrollIntoView({block:'nearest', inline:'nearest'});
+  renderSide();
+  $('#view').scrollTop = 0;
+  routeView();
+}
+
+$$('nav button[data-view]').forEach(b => b.onclick = () => {
+  if (state.view === b.dataset.view) return;
+  state.view = b.dataset.view;
+  syncURL();
+  renderView();
+});
+
+// ---------------- 抽屉：统一开关、Esc 关闭、焦点归还
+let _drawerFocus = null;
+function closeDrawers(){
+  $$('.drawer').forEach(d => d.remove());
+  if (_drawerFocus && document.contains(_drawerFocus)) _drawerFocus.focus();
+  _drawerFocus = null;
+}
+function openDrawer(el){
+  closeDrawers();
+  _drawerFocus = document.activeElement;
+  document.body.appendChild(el);
+  el.querySelector('.close')?.focus();
+}
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape' && $$('.drawer').length){ closeDrawers(); }
+});
+
+// ---------------- 帮助：面板内一页说明，避免第一次打开不知道干什么
+const GUIDE_STEPS = [
+  ['① 处理进度', '按「采集 → 清洗 → 归纳」顺序执行；卡片会显示当前进度和下一步操作。'],
+  ['② 对话', '基于知识库回答问题，并以 [1][2] 标注来源；点击来源可查看原文。同一会话支持连续追问，左侧为历史会话。'],
+  ['③ 知识浏览', '查看具体知识条目；左侧分组可折叠筛选。「采用 / 引用 / 不相关」会调整后续检索权重，连续不相关只降权，可在「状态」中恢复。'],
+  ['④ 知识图谱', '展示知识实体及其关系。点击节点可查看详情与关联节点，点击关联项可跳转并居中定位。'],
+  ['⑤ 采集源', '查看各数据源状态；异常时行内会给出处理建议。'],
+  ['⑥ 设置', '配置采集目录、模型、定时周期与语义过滤等参数。'],
+];
+function showHelp(){
+  closeDrawers();
+  const d = document.createElement('div');
+  d.className = 'drawer';
+  d.innerHTML = `<button class="close" title="关闭（Esc）">✕</button>
+    <h3>minime 怎么用</h3>
+    <div class="kv" style="margin-bottom:14px">将工作轨迹采集为可检索、可对话的个人知识库。</div>
+    ${GUIDE_STEPS.map(([t, v]) => `<div class="kvrow" style="grid-template-columns:88px 1fr;margin-bottom:12px">
+      <span style="color:var(--acc)">${t}</span><span style="line-height:1.75">${v}</span></div>`).join('')}
+    <h3 style="font-size:12px;margin:18px 0 8px">常用命令</h3>
+    <pre style="font-size:11px;line-height:1.9;color:var(--acc)">minime web                 打开这个面板（最常用）
+minime status              一眼看全：采集 / 归纳 / 定时 / 服务
+minime llm --run 20        后台归纳一批
+minime llm --all           归纳全部待处理轮次
+minime chat "问题"         命令行问一句
+minime doctor              自检，逐项告诉你哪里不对
+minime diag                导出脱敏诊断包（反馈问题时用）</pre>
+    <div class="kv" style="margin-top:14px">完整说明见仓库 <code>docs/使用手册.md</code></div>`;
+  document.body.appendChild(d);
+  d.querySelector('.close').onclick = () => d.remove();
+  d.querySelector('.close').focus();
+}
+$('#help-btn').onclick = showHelp;
+$('#theme-btn').onclick = () => setTheme(!isLight());
+
+(async () => {
+  readURL();
+  syncThemeBtn();
+  let navSaved = null;
+  try { navSaved = localStorage.getItem('navMore'); } catch(e){ /* 隐私模式忽略 */ }
+  setNavMore(navSaved === '1' || NAV_MORE.has(state.view));
+  FACETS = await get('/api/facets');
+  loadStats();
+  pollJobs();
+  // 首次进入：知识库为空时直接引导到「处理进度」，避免看到空白页不知所措
+  if (!(await get('/api/stats')).atoms && !location.search) state.view = 'progress';
+  renderView();
+})();
+</script>
+</body>
+</html>

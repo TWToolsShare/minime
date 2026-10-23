@@ -1,0 +1,6 @@
+# minime 可选依赖：核心功能零第三方依赖，以下三个按需安装
+# pip install -r requirements.txt
+
+mcp             # MCP 服务（minime mcp，接入 Trae / Claude 等客户端）
+cryptography    # 解密 Trae 云端会话登录态（不装则云端会话源不可用，其他源正常）
+numpy           # 向量检索与语义闸门的矩阵加速（不装也能跑，2000 条以上明显变慢）

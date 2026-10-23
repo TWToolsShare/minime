@@ -1,0 +1,58 @@
+name: CI
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  smoke:
+    name: smoke (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    env:
+      PYTHONIOENCODING: utf-8
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [macos-latest, windows-latest]
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: 安装（pip）
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install .
+
+      - name: 冒烟（空数据目录 → CLI / 模块 / 迁移 / Web）
+        run: python tests/smoke.py
+
+      - name: 构建 wheel
+        run: python -m pip wheel . --no-deps -w dist
+
+      - name: 检查 wheel 内容
+        shell: bash
+        run: |
+          python - <<'PY'
+          import glob, zipfile
+          whl = glob.glob("dist/*.whl")[0]
+          names = zipfile.ZipFile(whl).namelist()
+          need = [
+              "minime/run/minime.py",
+              "minime/pipeline/paths.py",
+              "minime/collector/adapters/trae/cloud.py",
+              "minime/collector/adapters/agents/workbuddy.py",
+              "minime/collector/adapters/agents/qoder.py",
+              "minime/collector/adapters/agents/doubao.py",
+              "minime/web/index.html",
+              "minime/docs/brand/logo-dark.svg",
+              "minime_launcher.py",
+          ]
+          missing = [n for n in need if n not in names]
+          assert not missing, f"wheel 缺少文件：{missing}"
+          print(f"{whl}: {len(names)} 个文件，关键文件齐全")
+          PY

@@ -1,0 +1,162 @@
+{
+  "_comment": "复制为 config.json 后修改。config.json 已被 .gitignore 排除，不会进仓库。",
+  "_note": "优先级：面板保存值 > 环境变量(MINIME_*) > 代码内置默认",
+  "llm": {
+    "_note": "任意 OpenAI 兼容接口（本地 omlx / Ollama / vLLM / 云端）",
+    "enabled": true,
+    "base_url": "http://127.0.0.1:8000/v1",
+    "model": "Qwen3.8-27B",
+    "api_key": "",
+    "timeout_s": 180,
+    "max_tokens": 2048,
+    "disable_thinking": true,
+    "max_atoms_per_run": 12,
+    "batch_size": 4,
+    "temperature": 0.2,
+    "prompt_lang": "zh",
+    "summary_threshold": 1200,
+    "summary_max_per_run": 100
+  },
+  "answer": {
+    "_note": "llm=大模型作答（检索同时启用向量，默认）；rules=关键词规则作答（不调用模型、检索只用关键词）",
+    "mode": "llm",
+    "decide_min_score": 0.55,
+    "decide_cache_ttl_s": 600
+  },
+  "embedding": {
+    "_note": "向量检索：开启后检索叠加语义召回（关键词没命中也能找到），并归档与工作主题无关的知识；接口不可达时自动降级为关键词检索",
+    "enabled": true,
+    "base_url": "http://127.0.0.1:11434/v1",
+    "model": "bge-m3",
+    "api_key": "",
+    "min_score": 0.28,
+    "query_timeout_s": 4,
+    "batch_size": 32,
+    "text_mode": "title_summary",
+    "reclassify": true,
+    "kind_min_score": 0.55,
+    "seeds": [],
+    "sources": [
+      "local_doc",
+      "obsidian",
+      "cloud_conversation",
+      "snapshot_turn",
+      "workbuddy_session",
+      "workbuddy_memory",
+      "qoder_session",
+      "doubao_conversation"
+    ]
+  },
+  "memory_sync": {
+    "_note": "minime -> mnemosyne 单向同步，默认关闭。bank 需先 mnemosyne bank create <name>",
+    "enabled": false,
+    "bank": "case-analysis",
+    "min_trust_tier": 1,
+    "kinds": [
+      "decision",
+      "preference",
+      "troubleshooting",
+      "pattern",
+      "insight"
+    ],
+    "min_veracity": 0.75,
+    "max_per_run": 20,
+    "direction": "minime_to_bank"
+  },
+  "collect": {
+    "cloud_sessions": true,
+    "snapshot_turns": true,
+    "workspace_index": true,
+    "trae_memory": true,
+    "file_history": true,
+    "local": {
+      "_note": "本地数据源：把任意目录的文档/笔记纳入知识库（路径只在本机生效，不要提交）",
+      "roots": [],
+      "include": [
+        "*.md",
+        "*.txt",
+        "*.markdown",
+        "*.org",
+        "*.rst",
+        "*.py",
+        "*.ts",
+        "*.js"
+      ],
+      "exclude_dirs": [
+        "node_modules",
+        ".git",
+        ".venv",
+        "dist",
+        "build",
+        "__pycache__"
+      ],
+      "max_file_bytes": 262144,
+      "max_files": 20000,
+      "path_allow": [],
+      "keyword_allow": [],
+      "keyword_deny": []
+    },
+    "obsidian": {
+      "roots": [],
+      "auto_discover": true,
+      "include": [
+        "*.md"
+      ],
+      "max_file_bytes": 524288,
+      "max_files": 50000
+    },
+    "workbuddy": {
+      "_note": "留空自动扫描 ~/.workbuddy-ai 与 ~/.workbuddy",
+      "roots": [],
+      "include_identity": true
+    },
+    "doubao": {
+      "_note": "留空自动扫描豆包应用数据目录；导出目录可直接填这里",
+      "roots": []
+    },
+    "qoder": {
+      "_note": "留空自动扫描 com.qoder.app.stable（含 main.sqlite）",
+      "roots": []
+    },
+    "intervals": {
+      "cloud_sessions": 300,
+      "snapshot": 600,
+      "workspace_index": 1800,
+      "file_history": 1800,
+      "trae_memory": 3600,
+      "local_docs": 3600,
+      "obsidian": 1800,
+      "workbuddy": 1800,
+      "qoder": 1800,
+      "doubao": 3600,
+      "_note": "各源采集周期（秒）。未到点直接跳过；失败按 ×2ⁿ 退避，最长 1 小时"
+    }
+  },
+  "web": {
+    "_note": "面板端口（也可用 MINIME_WEB_PORT）；日志保留档位",
+    "port": 8765,
+    "retention_days_error": 7,
+    "retention_hours_info": 12
+  },
+  "consolidate": {
+    "_note": "定期压缩：过期归档、近似/语义判重取代、原始归档与事件的保留期；只改状态不删数据",
+    "enabled": true,
+    "similarity": 0.88,
+    "body_similarity": 0.85,
+    "vector_similarity": 0.86,
+    "raw_keep_versions": 3,
+    "event_retention_days": 365
+  },
+  "feedback": {
+    "_note": "反馈学习：连续「不相关」进入降权（不删除、可恢复）；日志保留 0 表示永久",
+    "dormant_after_rejects": 2,
+    "dormant_penalty": 0.6,
+    "dormant_fallback_min": 3,
+    "usage_retention_days": 180
+  },
+  "schedule": {
+    "_note": "系统定时任务：macOS launchd / Windows 计划任务；Linux 用 minime watch",
+    "enabled": true,
+    "interval_minutes": 30
+  }
+}
