@@ -85,6 +85,26 @@ def api_restart():
     return {"ok": True, "port": new_port, "pid": os.getpid()}
 
 
+def _fix_std_streams():
+    """execv 前修复标准流：后台/nohup 启动时 0/1/2 可能已失效，
+    直接继承会让新解释器在 init_sys_streams 阶段 Fatal 崩溃。
+    这里统一兜底重定向到有效 fd（0 接 /dev/null，1/2 追加写 web.log）。"""
+    try:
+        devnull = os.open(os.devnull, os.O_RDONLY)
+        os.dup2(devnull, 0)
+        os.close(devnull)
+    except OSError:
+        pass
+    log_path = os.path.join(paths.LOGS, "web.log")
+    try:
+        out = os.open(log_path, os.O_WRONLY | os.O_CREAT | os.O_APPEND, 0o644)
+        os.dup2(out, 1)
+        os.dup2(out, 2)
+        os.close(out)
+    except OSError:
+        pass
+
+
 def _reexec():
     """等价于重新执行 minime web：同一解释器加载最新代码。"""
     args = [sys.executable, os.path.abspath(__file__)] + sys.argv[1:]
@@ -94,6 +114,7 @@ def _reexec():
                           "import subprocess,sys,time;time.sleep(1);"
                           "subprocess.Popen(sys.argv[1:])", *args])
         os._exit(0)
+    _fix_std_streams()
     os.execv(args[0], args)
 
 

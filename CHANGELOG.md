@@ -1,5 +1,12 @@
 # 更新记录
 
+## v0.1.0-pre.10（2026-10-27）
+
+### 修复
+
+- **后台启动时面板「重启」必然崩溃**：以 `nohup` / 后台方式启动 `minime web` 后，进程继承的 0/1/2 标准流在父 shell 退出后失效；此时从界面点「重启」，`_reexec()` 用 `os.execv` 原地重启会原样继承坏 fd，新解释器在 `init_sys_streams` 阶段直接 `Fatal Python error: Bad file descriptor` 退出，表现为「重启后服务挂掉」。现于 exec 前将标准流兜底重定向（stdin→`/dev/null`，stdout/stderr→追加写 `web.log`），任何启动方式下重启都不再崩。
+- 版本号 `0.1.0rc10` 对应 `v0.1.0-pre.10`。
+
 ## v0.1.0-pre.9（2026-10-23）
 
 ### 改进
