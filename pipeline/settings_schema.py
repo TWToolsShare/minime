@@ -233,6 +233,11 @@ def _dur(sec):
 
 for _name, _label, _default in ADAPTER_INTERVALS:
     FIELDS.append({
+        "key": f"collect.enabled.{_name}", "env": "", "type": "bool",
+        "group": "定时采集 · 各源开关", "label": _label, "default": True,
+        "hint": "取消勾选即停止采集/重试（已入库知识与归档保留，可随时再打开）",
+    })
+    FIELDS.append({
         "key": f"collect.intervals.{_name}", "env": "", "type": "int",
         "min": 60, "max": 86400, "group": "定时采集 · 各源周期",
         "label": _label, "default": _default,
@@ -345,6 +350,9 @@ def current_view():
     out = {}
     for f in FIELDS:
         v = get_path(cfg, f["key"])
+        # bool 字段未保存时按 default 展示，避免「默认开启」被画成未勾选
+        if v is None and f["type"] == "bool" and "default" in f:
+            v = f["default"]
         if f.get("sensitive") and v:
             v = "***"
         out[f["key"]] = v

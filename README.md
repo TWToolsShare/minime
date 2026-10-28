@@ -156,6 +156,43 @@ A few notes:
 - **Collection intervals**: each source can be tuned in Settings → **Scheduled collection → Source intervals**. Changing intervals does not require reinstalling the scheduled task; changing the trigger interval does.
 - **Scheduled collection**: launchd on macOS, Task Scheduler on Windows, and `minime watch` on Linux. The task is installed automatically on first run; it collects, extracts turns, and cleans, and also enriches when LLM enrichment is enabled.
 
+### Recommended scan directories
+
+**No local directory is scanned by default** — you choose them. The rule is simple: **only add directories where you keep your own docs, notes, or code; never add a whole disk or system directories.** Too many roots slow collection down, pull in noise, and may pick up private files.
+
+In Settings → **Local sources → Directories**, add one path per line (or set them all at once with `minime set collect.local.roots`, comma-separated). Common setups:
+
+| Your situation | Suggested directories |
+|---|---|
+| Only use AI coding assistants (Trae / Cursor, etc.) | Nothing to add — sessions, snapshots, and file history are collected automatically |
+| You have personal notes (other than Obsidian) | `~/notes`, `~/Documents/notes` |
+| You write code | Your code root, e.g. `~/code`, `~/projects`, `~/workspace` |
+| You hoard docs and references | `~/Documents` (unless it contains huge media/backup folders) |
+| Multiple disks / external drive | Use the mount path directly, e.g. `/Volumes/data/docs` |
+| Windows | `D:\work`, `C:\Users\<you>\Documents\notes` |
+
+Practical tips:
+
+- **Prefer leaf directories** (e.g. `~/code/my-project`) over broad roots like `~` or `~/Documents`.
+- **Don't add Obsidian vaults** — they are discovered automatically; adding them collects everything twice.
+- **Avoid** `~/Library`, `~/Downloads` (usually temporary), `.git`, and `node_modules` — these are excluded by default, but a huge root still wastes time.
+- **Max file size** defaults to 256 KB (plenty for code/text); larger files are skipped. Tune with `max_file_bytes`.
+- Start with 1–2 core directories, run `minime collect --force`, and check the file count under **Sources → local_docs** before adding more — easier to diagnose than a big batch at once.
+
+The structure in `config.json` (`~/Library/Application Support/minime/config.json` on macOS, `%LOCALAPPDATA%\minime\config.json` on Windows):
+
+```json
+{
+  "collect": {
+    "local": {
+      "roots": ["~/notes", "~/code", "/Volumes/data/docs"],
+      "max_files": 20000,
+      "max_file_bytes": 262144
+    }
+  }
+}
+```
+
 ---
 
 ## Connect to Trae / Claude Code / Cursor

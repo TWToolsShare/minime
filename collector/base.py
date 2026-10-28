@@ -173,6 +173,19 @@ class SourceAdapter:
         return {"objects": n, "bytes": size}
 
     # ---- 框架能力
+    @property
+    def enabled(self):
+        """是否参与自动采集：config.json -> collect.enabled.<name>，缺省视为开启。
+
+        仅停采：已入库知识、原始归档都保留，随时可再打开。
+        """
+        try:
+            import config  # noqa: PLC0415
+            v = ((config.load().get("collect") or {}).get("enabled") or {}).get(self.name)
+            return True if v is None else bool(v)
+        except Exception:  # noqa: BLE001
+            return True
+
     def state(self):
         cur = self.conn.execute("SELECT * FROM collect_state WHERE adapter=?",
                                 (self.name,))
@@ -259,6 +272,10 @@ class AutoCollector:
     def tick(self, force=False, now=None):
         results = []
         for a in registry(self.conn, self.names):
+            # 已关闭的源：自动采集跳过；只有显式手动触发（force 且指定了源）才跑
+            if not a.enabled and not (force and self.names):
+                results.append({"adapter": a.name, "status": "disabled"})
+                continue
             if not a.due(now=now, force=force):
                 results.append({"adapter": a.name, "status": "not_due",
                                 "next_in_s": self._next_in(a, now)})
@@ -298,6 +315,7 @@ class AutoCollector:
             out.append({
                 "adapter": a.name, "description": a.description,
                 "label": a.label or a.name, "fix_hint": a.fix_hint,
+                "enabled": a.enabled,
                 "interval_s": a.interval_s, "health": ok, "detail": detail,
                 "last_run": st.get("last_run"), "last_status": st.get("last_status"),
                 "last_error": st.get("last_error"), "last_elapsed": st.get("last_elapsed"),

@@ -493,6 +493,8 @@ def api_progress(qs, body):
     if action == "pipeline":
         steps = tuple(body.get("steps") or ("collect", "index", "normalize"))
         return P.start("pipeline", P.run_pipeline_job, steps)
+    if action == "embed":
+        return P.start("embed", P.run_embed_job)
     return {"error": f"unknown action: {action}"}
 
 

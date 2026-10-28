@@ -156,6 +156,43 @@ minime chat --list                                     # 历史会话
 - **采集频率**：设置页「定时采集 · 各源周期」可分别调整。改周期不需要重装定时任务；只有改「定时触发间隔」才需要 `minime install`。
 - **定时采集**：macOS 用 launchd，Windows 用计划任务，Linux 用 `minime watch` 常驻。首次运行会自动安装定时任务；它负责采集、抽取轨迹与清洗，开启 LLM 归纳后也会自动归纳。
 
+### 建议的扫描目录怎么配
+
+**默认不扫描任何本地目录**——需要你自己填。原则很简单：**只填你写文档/笔记/代码的目录，别填整块盘或系统目录**。填多了会拖慢采集、混入无关内容，还可能扫到隐私文件。
+
+在「设置 → 本地数据源 → 采集目录」里，每行一个路径（也可用 `minime set collect.local.roots` 一次配好，逗号分隔）。下面是常见环境的建议：
+
+| 你的情况 | 建议填的目录 |
+|---|---|
+| 只用 AI 编程助手（Trae / Cursor 等） | 不用填。会话、快照、文件历史会自动采集 |
+| 有个人笔记（Obsidian 除外） | `~/notes`、`~/Documents/notes` |
+| 写代码 | 你的代码根目录，例如 `~/code`、`~/projects`、`~/workspace` |
+| 资料/文档收集党 | `~/Documents`（若下面没有巨型媒体/备份目录） |
+| 多块磁盘 / 外置盘 | 直接写挂载路径，如 `/Volumes/data/docs` |
+| Windows | `D:\work`、`C:\Users\你的用户名\Documents\notes` |
+
+几个实用建议：
+
+- **优先填"叶子目录"**（如 `~/code/my-project`），而不是 `~` 或 `~/Documents` 这种大而杂的根目录。
+- **Obsidian 笔记不用填**，它会被自动发现；重复填反而会采两遍。
+- **不要填** `~/Library`、`~/Downloads`（多为临时文件）、`.git`、`node_modules` 这类目录——默认已在排除列表里，但根目录填太大会浪费时间。
+- **单文件体积**默认上限 256 KB（代码/文本足够）；超过上限的文件会跳过，可用 `max_file_bytes` 调整。
+- 先填 1~2 个最核心的目录，跑 `minime collect --force` 看看「采集源 → local_docs」的命中文件数，再逐步加，比一次填一堆更好排查。
+
+配置文件里对应的结构（`~/Library/Application Support/minime/config.json`，Windows 为 `%LOCALAPPDATA%\minime\config.json`）：
+
+```json
+{
+  "collect": {
+    "local": {
+      "roots": ["~/notes", "~/code", "/Volumes/data/docs"],
+      "max_files": 20000,
+      "max_file_bytes": 262144
+    }
+  }
+}
+```
+
 ---
 
 ## 接进 Trae / Claude Code / Cursor

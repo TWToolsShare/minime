@@ -88,12 +88,19 @@ def _llm_cfg():
 def _collect_stats():
     if not os.path.exists(MANIFEST):
         return []
+    import config  # noqa: PLC0415
     m = sqlite3.connect(MANIFEST)
     m.row_factory = sqlite3.Row
     try:
         rows = m.execute("SELECT adapter,last_run,last_status,fails,runs,last_elapsed"
                          " FROM collect_state ORDER BY adapter").fetchall()
-        return [dict(r) for r in rows]
+        enabled = ((config.load().get("collect") or {}).get("enabled") or {})
+        out = []
+        for r in rows:
+            d = dict(r)
+            d["enabled"] = enabled.get(d["adapter"], True) is not False
+            out.append(d)
+        return out
     except sqlite3.Error:
         return []
     finally:
@@ -366,6 +373,55 @@ def run_pipeline_job(job_id, steps=("collect", "index", "normalize")):
                    capture_output=True, text=True)
     paths.release_lock(lock)
     return {"steps": out}
+
+
+def run_embed_job(job_id):
+    """后台重算当前模型下的全部知识向量（换模型/换文本模式后点击按钮触发）。
+
+    只重算向量，不动知识本身。按批推进并回报进度，可取消。
+    """
+    import config  # noqa: PLC0415
+    import embed  # noqa: PLC0415
+    import retrieval as R  # noqa: PLC0415
+    c = (config.load().get("embedding") or {})
+    if not c.get("enabled"):
+        raise RuntimeError("向量检索未启用：在设置页打开「启用向量检索」")
+    if not embed.healthy(c):
+        raise RuntimeError("未配置 embedding.base_url / model")
+    mdl = embed.model(c)
+    # 先探一次连通性：接口不可达时立即失败并说清楚，别让整批任务挂在超时上
+    try:
+        embed.embed_texts(c, ["ping"], timeout=min(15.0, float(c.get("query_timeout_s") or 15)))
+    except Exception as e:  # noqa: BLE001
+        raise RuntimeError(f"向量服务不可达（{c.get('base_url')}）：{type(e).__name__}: {e}") from e
+    conn = R.connect()
+    embed.ensure(conn)
+    try:
+        total = conn.execute(
+            "SELECT COUNT(*) FROM atom WHERE state IN ('active','archived')").fetchone()[0]
+        _job_update(job_id, total=total, done=0,
+                    message=f"待重算 {total} 条（模型 {mdl}）")
+        done = embedded = 0
+        step = max(50, int(c.get("batch_size") or 32) * 10)
+        while True:
+            if _cancelled(job_id):
+                return {"cancelled": True, "done": done, "embedded": embedded, "model": mdl}
+            rows = conn.execute(
+                """SELECT atom_id, kind, title, summary, body, state, trust_tier
+                   FROM atom WHERE state IN ('active','archived')
+                   ORDER BY atom_id LIMIT ? OFFSET ?""", (step, done)).fetchall()
+            if not rows:
+                break
+            # vectors_for 命中 sig 缓存则复用，缺失的按 batch 请求并落库
+            _v, n = embed.vectors_for(conn, c, rows)
+            embedded += n
+            done += len(rows)
+            _job_update(job_id, done=min(done, total),
+                        message=f"已处理 {done}/{total} 条 · 新算向量 {embedded}")
+        embed.invalidate(mdl)  # 让检索端的向量矩阵缓存失效，下次重建
+        return {"processed": done, "embedded": embedded, "model": mdl}
+    finally:
+        conn.close()
 
 
 if __name__ == "__main__":

@@ -172,9 +172,14 @@ def cmd_status():
         st = c["last_status"] or "-"
         last = time.strftime("%m-%d %H:%M", time.localtime(c["last_run"] or 0)) \
             if c.get("last_run") else "未运行"
+        if not c.get("enabled", True):
+            print(f"    ○ {c['adapter']:16s} {'已停用':12s} {last}")
+            continue
         mark = "✓" if st == "ok" else ("!" if st == "unavailable" else "✗")
         print(f"    {mark} {c['adapter']:16s} {st:12s} {last}"
               + (f"  失败 {c['fails']} 次" if c.get("fails") else ""))
+    if any(not c.get("enabled", True) for c in pr["collect"]):
+        print("    → 已停用的源不参与自动采集；在面板「采集源」页勾选可重新启用")
 
     # ---- 归纳
     bar_w = 24

@@ -788,6 +788,20 @@ const I18N = {
   '再采一次': {en: 'Collect again'},
   '开始采集': {en: 'Start collecting'},
   '重新清洗': {en: 'Re-clean'},
+  '启用': {en: 'Enabled'},
+  '已停用': {en: 'Disabled'},
+  '已启用': {en: 'Enabled'},
+  '已停用（已有数据保留）': {en: 'Disabled (existing data kept)'},
+  '取消勾选即停止采集/重试（已入库知识与归档保留）': {en: 'Uncheck to stop collecting/retrying (collected knowledge and archives are kept)'},
+  '向量维护': {en: 'Vector maintenance'},
+  '重新计算向量': {en: 'Recompute vectors'},
+  '换了向量模型或「向量化文本」后，旧向量不再参与检索。点下面的按钮为所有知识重算向量——只重算向量，不重新分析知识。': {en: 'After switching the embedding model or "text to embed", old vectors no longer match. Use the button below to recompute vectors for all knowledge — vectors only, knowledge is not re-analyzed.'},
+  '当前模型：{0}': {en: 'Current model: {0}'},
+  '未配置向量模型': {en: 'No embedding model configured'},
+  '重新计算全部向量？': {en: 'Recompute all vectors?'},
+  '将为所有知识按当前模型（{0}）重算向量，只动向量、不重新分析知识。知识较多时会跑一会儿，可在顶部任务条看进度。': {en: 'Vectors for all knowledge will be recomputed with the current model ({0}); only vectors change, knowledge is not re-analyzed. This may take a while for a large library — watch the progress bar at the top.'},
+  '开始': {en: 'Start'},
+  '已提交，进度见顶部任务条…': {en: 'Submitted — see the progress bar at the top…'},
   '归纳一批（上限 {0} 轮；待处理 {1} 轮）': {en: 'Summarize a batch (max {0}; {1} pending)'},
   '已全部归纳': {en: 'All summarized'},
   '下一步：在「对话」中提问。': {en: 'Next: ask in "Chat".'},
@@ -1451,9 +1465,9 @@ function renderJobBar(){
     pollJobs();
   });
 }
-const JOB_CN = cnDict({llm:'LLM 归纳', collect:'采集', pipeline:'流水线'});
+const JOB_CN = cnDict({llm:'LLM 归纳', collect:'采集', pipeline:'流水线', embed:'向量重算'});
 const JOB_ST_CN = cnDict({ok:'完成', running:'进行中', cancelled:'已停止', error:'失败'});
-const COL_ST_CN = cnDict({ok:'正常', not_due:'未到时间', unavailable:'不可用', error:'失败'});
+const COL_ST_CN = cnDict({ok:'正常', not_due:'未到时间', unavailable:'不可用', error:'失败', disabled:'已停用'});
 
 async function pollJobs(){
   try {
@@ -2374,6 +2388,12 @@ async function loadSettings(){
       <div class="acts"><button id="sync-preview">${T('预览候选')}</button><button class="primary" id="sync-run">${T('立即同步')}</button>
         <button id="llm-test">${T('测试模型连通')}</button></div>
       <div id="sync-out" class="kv" style="margin-top:8px"></div>
+    </div>
+    <div class="cfg-group"><h3>${T('向量维护')}</h3>
+      <div class="kv" style="margin-bottom:10px">${T('换了向量模型或「向量化文本」后，旧向量不再参与检索。点下面的按钮为所有知识重算向量——只重算向量，不重新分析知识。')}</div>
+      <div class="acts"><button id="embed-rebuild">${T('重新计算向量')}</button>
+        <span id="embed-cur" class="kv"></span></div>
+      <div id="embed-out" class="kv" style="margin-top:8px"></div>
     </div>`;
 
   // 有未保存改动时给出提示，避免直接关页面丢配置
@@ -2440,6 +2460,21 @@ async function loadSettings(){
       : `<span style="color:var(--bad)">${T('连接失败')}</span> · ${esc(r.error)}`;
     toast(r.ok ? T('模型连接正常') : T('模型连接失败'), r.ok ? 'ok' : 'error');
   });
+  // 向量维护：显示当前模型，一键后台重算全部向量（进度显示在顶部任务条）
+  const embModel = current['embedding.model'] || '';
+  if ($('#embed-cur')) $('#embed-cur').textContent = embModel
+    ? T('当前模型：{0}', embModel) : T('未配置向量模型');
+  $('#embed-rebuild').onclick = async e => {
+    if (!$('#embed-out')) return;
+    const ok = await confirmBox({
+      title: T('重新计算全部向量？'),
+      text: T('将为所有知识按当前模型（{0}）重算向量，只动向量、不重新分析知识。知识较多时会跑一会儿，可在顶部任务条看进度。', embModel || '-'),
+      ok: T('开始')});
+    if (!ok) return;
+    $('#embed-out').textContent = T('已提交，进度见顶部任务条…');
+    const r = await startJob('embed');
+    if (r && !r.error) setTimeout(loadSettings, 800);
+  };
   const showSync = (r, prefix) => {
     if (!r.preview) {
       $('#sync-out').innerHTML = `${prefix} · ${T('已同步 {0} 条', r.synced??0)} · ${T('失败')} <b>${r.failed??0}</b>`
@@ -2977,10 +3012,13 @@ async function loadCollectors(){
     const color = ok ? 'var(--ok)' : (a.last_status === 'unavailable' ? 'var(--warn)' : 'var(--bad)');
     const last = a.last_run ? new Date(a.last_run*1000).toLocaleString(CUR_LANG==='en'?'en-US':'zh-CN') : T('未运行');
     const bad = a.last_status === 'unavailable' || a.last_status === 'error' || !a.health;
-    return `<tr>
+    const on = a.enabled !== false;
+    return `<tr style="${on ? '' : 'opacity:.55'}">
       <td><b>${esc(a.label||a.adapter)}</b>
         <div class="kv" title="${esc(a.adapter)}">${esc(a.description)}</div>
-        ${bad && a.fix_hint ? `<div class="kv" style="color:var(--warn)">→ ${esc(a.fix_hint)}</div>` : ''}</td>
+        ${bad && a.fix_hint && on ? `<div class="kv" style="color:var(--warn)">→ ${esc(a.fix_hint)}</div>` : ''}</td>
+      <td><label style="cursor:pointer" title="${T('取消勾选即停止采集/重试（已入库知识与归档保留）')}">
+          <input type="checkbox" data-toggle="${esc(a.adapter)}" ${on?'checked':''}> ${on?T('启用'):T('已停用')}</label></td>
       <td><span style="color:${color}">●</span> ${COL_ST_CN[a.last_status]||esc(a.last_status||a.detail||'—')}
         ${a.last_error?`<div class="kv">${esc(a.last_error.slice(0,120))}</div>`:''}
         ${!a.health && a.detail ? `<div class="kv">${esc(a.detail)}</div>`:''}</td>
@@ -2994,10 +3032,17 @@ async function loadCollectors(){
     · ${T('采集周期可在「设置 → 定时采集 · 各源周期」调整')}</span></h2>
     <div class="card"><table style="width:100%;border-collapse:collapse;font-size:12px">
       <thead><tr style="color:var(--fg-3);text-align:left;border-bottom:1px solid var(--line)">
-        <th style="padding:6px 4px">${T('信息源')}</th><th>${T('状态')}</th><th>${T('周期')}</th><th>${T('归档')}</th><th>${T('最近')}</th><th>${T('操作')}</th></tr></thead>
+        <th style="padding:6px 4px">${T('信息源')}</th><th>${T('启用')}</th><th>${T('状态')}</th><th>${T('周期')}</th><th>${T('归档')}</th><th>${T('最近')}</th><th>${T('操作')}</th></tr></thead>
       <tbody>${rows}</tbody></table></div>
     <div class="acts" style="margin-top:12px"><button class="primary" id="run-all">${T('全部立即采集')}</button>
       <span class="kv" style="margin-left:10px">${T('采集仅获取原始数据，清洗后才会生成知识 → 在「处理进度」执行「更新知识库」')}</span></div>`;
+  // 逐源启停：写 collect.enabled.<name>，自动采集与定时任务都会跳过已停用的源
+  $$('[data-toggle]').forEach(el => el.onchange = async () => {
+    const {error} = await post('/api/config', {values: {[`collect.enabled.${el.dataset.toggle}`]: el.checked}});
+    if (error) { toast(error, 'error'); el.checked = !el.checked; return; }
+    toast(el.checked ? T('已启用') : T('已停用（已有数据保留）'), 'ok');
+    setTimeout(loadCollectors, 500);
+  });
   $$('[data-run]').forEach(b => b.onclick = () => withBusy(b, '提交中…', async () => {
     const r = await post('/api/collectors', {adapter: b.dataset.run});
     if (r.error) return toast(r.error, 'error');
