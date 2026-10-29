@@ -234,14 +234,28 @@ def _run_batch(w, conn, cfg, batch, created, skipped, errors):
             kept += 1
             created += 1
         _mark_done(conn, t, kept)
-    conn.commit()
+        # 每轮独立提交，避免整段 LLM 任务长时间持有 kb.db 写锁（否则
+        # Web 面板/采集/归一化并发写时会等不到而报 database is locked）
+        conn.commit()
     return created, skipped, errors
 
 
-def _mark_done(conn, target, n_atoms):
-    """记录已归纳，避免重复跑（normalize 重建 atom 时不影响本表）。"""
-    conn.execute("INSERT OR REPLACE INTO llm_cursor VALUES (?,?,?)",
-                 (target["ref"], n_atoms, int(time.time())))
+def _mark_done(conn, target, n_atoms, _tries=20):
+    """记录已归纳，避免重复跑（normalize 重建 atom 时不影响本表）。
+
+    并发写 kb.db 时可能短暂忙，做有限重试而不是立刻抛 database is locked。
+    """
+    for attempt in range(_tries):
+        try:
+            conn.execute("INSERT OR REPLACE INTO llm_cursor VALUES (?,?,?)",
+                         (target["ref"], n_atoms, int(time.time())))
+            conn.commit()
+            return
+        except sqlite3.OperationalError as e:
+            if "locked" in str(e).lower() and attempt < _tries - 1:
+                time.sleep(0.2 * (attempt + 1))
+                continue
+            raise
 
 
 def ensure_schema(conn):
