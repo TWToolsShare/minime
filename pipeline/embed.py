@@ -181,9 +181,14 @@ def vectors_for(conn, c, rows):
     返回 (vectors, embedded)：vectors 形如 {atom_id: [float]}；embedded 是新算的条数。
     """
     mdl = model(c)
-    cached = {r["atom_id"]: (r["sig"], r["vec"])
-              for r in conn.execute(
-                  "SELECT atom_id, sig, vec FROM atom_embedding WHERE model=?", (mdl,))}
+    ids = [r["atom_id"] for r in rows]
+    cached = {}
+    for i in range(0, len(ids), 500):   # 只查本批，避免每批都全表扫 atom_embedding
+        part = ids[i:i + 500]
+        q = ("SELECT atom_id, sig, vec FROM atom_embedding WHERE model=?"
+             f" AND atom_id IN ({','.join('?' * len(part))})")
+        for r in conn.execute(q, (mdl, *part)):
+            cached[r["atom_id"]] = (r["sig"], r["vec"])
     out, todo = {}, []
     for row in rows:
         text = text_of(row)

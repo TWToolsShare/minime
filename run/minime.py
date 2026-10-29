@@ -12,6 +12,7 @@
   watch             常驻自动采集
   logs [-f] [-n N]  查看运行日志（默认尾部 80 行，-f 跟随）
   llm [--run N|--all]  LLM 归纳进度；--run 后台跑一批，--all 归纳全部待处理轮次
+  embed [--wait]    重算当前模型的全部向量（换模型/换文本模式后用）；--status 看进度
   config            以文本查看当前生效配置
   set KEY VALUE     修改配置项（key 用点号路径，如 llm.enabled true）
   diag              导出脱敏诊断包（排障用，可发给他人）
@@ -267,6 +268,45 @@ def cmd_llm(argv):
     scope = "全部待处理轮次" if n == 0 else f"上限 {n} 轮"
     print(f"已在后台启动归纳：{j['job_id']}（{scope}）")
     print("  跟踪进度：minime llm   或不打断地看日志：minime logs -f")
+    return 0
+
+
+def cmd_embed(argv):
+    """重算向量：默认后台跑并立即返回；--wait 前台跑完再退出。"""
+    import progress as P  # noqa: PLC0415
+    import embed as E  # noqa: PLC0415
+    import config as CFG  # noqa: PLC0415
+    c = CFG.load().get("embedding") or {}
+    if not c.get("enabled"):
+        print("! 向量检索未启用：minime set embedding.enabled true", file=sys.stderr)
+        return 2
+    mdl = E.model(c)
+    if "--status" in argv:
+        jobs = [j for j in P.list_jobs(30) if j["kind"] == "embed"]
+        if not jobs:
+            print(f"没有向量重算记录（当前模型 {mdl}）")
+            return 0
+        j = jobs[0]
+        print(f"{j['job_id']} · {j['status']} · {j['done']}/{j['total'] or '?'}"
+              f" · {j['elapsed_s']}s")
+        if j.get("message"):
+            print(f"  {j['message']}")
+        return 0
+    if "--wait" in argv:
+        jid = f"embed-cli-{int(time.time())}"
+        try:
+            r = P.run_embed_job(jid)
+        except Exception as e:  # noqa: BLE001
+            print(f"! {type(e).__name__}: {e}", file=sys.stderr)
+            return 1
+        print(f"完成：模型 {r['model']} · 处理 {r['processed']} 条 · 新算向量 {r['embedded']} 条")
+        return 0
+    j = P.start("embed", P.run_embed_job)
+    if j.get("reused"):
+        print(f"已有向量重算任务在跑：{j['job_id']}（模型 {mdl}）")
+    else:
+        print(f"已在后台启动向量重算：{j['job_id']}（模型 {mdl}）")
+    print("  跟踪进度：minime embed --status")
     return 0
 
 
@@ -718,6 +758,8 @@ def main():
         return cmd_chat(rest)
     if cmd == "llm":
         return cmd_llm(rest)
+    if cmd == "embed":
+        return cmd_embed(rest)
     if cmd == "config":
         return cmd_config(rest)
     if cmd == "set":

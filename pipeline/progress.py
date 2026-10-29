@@ -402,7 +402,9 @@ def run_embed_job(job_id):
         _job_update(job_id, total=total, done=0,
                     message=f"待重算 {total} 条（模型 {mdl}）")
         done = embedded = 0
-        step = max(50, int(c.get("batch_size") or 32) * 10)
+        # 每次只推进 batch_size 条：vectors_for 内部会串行发一轮网络请求，
+        # 块太大就长时间持有写事务，面板和其他进程会撞 database is locked。
+        step = max(1, int(c.get("batch_size") or 32))
         while True:
             if _cancelled(job_id):
                 return {"cancelled": True, "done": done, "embedded": embedded, "model": mdl}
@@ -412,7 +414,7 @@ def run_embed_job(job_id):
                    ORDER BY atom_id LIMIT ? OFFSET ?""", (step, done)).fetchall()
             if not rows:
                 break
-            # vectors_for 命中 sig 缓存则复用，缺失的按 batch 请求并落库
+            # vectors_for 命中 sig 缓存则复用，缺失的按 batch 请求并落库后 commit
             _v, n = embed.vectors_for(conn, c, rows)
             embedded += n
             done += len(rows)
