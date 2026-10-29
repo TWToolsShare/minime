@@ -293,14 +293,38 @@ def cmd_embed(argv):
             print(f"  {j['message']}")
         return 0
     if "--wait" in argv:
-        jid = f"embed-cli-{int(time.time())}"
-        try:
-            r = P.run_embed_job(jid)
-        except Exception as e:  # noqa: BLE001
-            print(f"! {type(e).__name__}: {e}", file=sys.stderr)
-            return 1
-        print(f"完成：模型 {r['model']} · 处理 {r['processed']} 条 · 新算向量 {r['embedded']} 条")
-        return 0
+        j = P.start("embed", P.run_embed_job)
+        jid = j["job_id"]
+        if j.get("reused"):
+            print(f"已有向量重算任务在跑：{jid}，改为跟踪它的进度")
+        else:
+            print(f"向量重算中：{jid}（模型 {mdl}）")
+        last = -1
+        while True:
+            time.sleep(2)
+            j = P.job(jid)
+            if not j:
+                break
+            done, total = j.get("done") or 0, j.get("total") or 0
+            if total and done != last:
+                last = done
+                pct = done * 100 // total
+                bar = "█" * (pct // 5) + "·" * (20 - pct // 5)
+                print(f"\r  [{bar}] {pct:3d}%  {done}/{total}  {j.get('message') or ''}"[:120],
+                      end="", flush=True)
+            if j["status"] != "running":
+                print()
+                break
+        res = (j or {}).get("result") or {}
+        if j and j["status"] == "ok":
+            print(f"完成：模型 {res.get('model')} · 处理 {res.get('processed')} 条"
+                  f" · 新算向量 {res.get('embedded')} 条")
+            return 0
+        if j and j["status"] == "cancelled":
+            print("已取消")
+            return 130
+        print(f"! {res.get('error') or (j or {}).get('message') or '未知错误'}", file=sys.stderr)
+        return 1
     j = P.start("embed", P.run_embed_job)
     if j.get("reused"):
         print(f"已有向量重算任务在跑：{j['job_id']}（模型 {mdl}）")
