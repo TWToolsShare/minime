@@ -1,5 +1,12 @@
 # 更新记录
 
+## v0.1.0-pre.12（2026-10-29）
+
+### 修复
+
+- **清洗阶段长时间卡死并导致面板 `database is locked`**：重建模式下临时表由 `CREATE TEMP TABLE ... AS SELECT` 创建，只复制列、不复制索引，`add_atom()` 按 `fingerprint` 查重退化为全表扫描（O(n²)）。知识量上万后清洗会跑数小时且长期占用写锁，面板表现为多个页面报 `OperationalError: database is locked`、图谱不渲染。现为临时表补建 `fingerprint` 与 `atom_id` 索引，同等规模清洗从数小时降到十余分钟。
+- 版本号 `0.1.0rc12` 对应 `v0.1.0-pre.12`。
+
 ## v0.1.0-pre.11（2026-10-27）
 
 ### 新增
