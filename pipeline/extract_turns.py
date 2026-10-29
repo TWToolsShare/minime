@@ -108,7 +108,7 @@ def parse_numstat(text):
 
 
 def run(limit_sessions=None):
-    conn = sqlite3.connect(DB)
+    conn = paths.db_connect(DB)
     ensure_schema(conn)
     t0 = time.time()
     stats = {"sessions": 0, "turns": 0, "files": 0, "skipped": 0}

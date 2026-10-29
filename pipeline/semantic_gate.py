@@ -246,9 +246,7 @@ def main():
     ap.add_argument("--restore", action="store_true", help="撤销归档")
     ap.add_argument("--limit", type=int, default=None)
     args = ap.parse_args()
-    conn = sqlite3.connect(args.db, timeout=15)
-    conn.row_factory = sqlite3.Row
-    conn.execute("PRAGMA busy_timeout=15000")
+    conn = paths.db_connect(args.db, row_factory=sqlite3.Row)
     try:
         out = run(conn, dry_run=args.dry_run, limit=args.limit, restore=args.restore)
     except (OSError, KeyError, ValueError, RuntimeError) as e:

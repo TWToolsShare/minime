@@ -134,9 +134,7 @@ def audit_atoms(limit_samples=5):
 
 
 def _conn(path):
-    c = sqlite3.connect(path)
-    c.row_factory = sqlite3.Row
-    return c
+    return paths.db_connect(path, row_factory=sqlite3.Row)
 
 
 def _sha(rows):
@@ -499,7 +497,7 @@ def import_pack(path, dry_run=True, conflict="merge", enable=False):
     w = Writer.__new__(Writer)          # 只借用写方法，不清空本地知识库
     w.c = kb
     w.full = False                      # 增量写入（T() 直接落正式表）
-    w.manifest = sqlite3.connect(MANIFEST)
+    w.manifest = paths.db_connect(MANIFEST)
     w.stats = {"atom": 0, "dup": 0, "source": 0, "facet": 0}
     imported = merged = 0
     for a in atoms:

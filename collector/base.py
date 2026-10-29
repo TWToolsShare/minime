@@ -69,7 +69,7 @@ def _log(status, name, **fields):
 def init_db():
     paths.ensure()
     os.makedirs(RAW, exist_ok=True)
-    c = sqlite3.connect(MANIFEST)
+    c = paths.db_connect(MANIFEST)
     c.executescript("""
     CREATE TABLE IF NOT EXISTS raw_object (
       sha256 TEXT PRIMARY KEY,

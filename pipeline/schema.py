@@ -208,13 +208,28 @@ CREATE TABLE IF NOT EXISTS llm_cursor (
 """
 
 
+# 统一的忙等待时长：任何连接都至少等这么久再报 database is locked。
+# 默认 5s 偏短，LLM/采集持有写事务期间极易撞锁；这里拉到 30s 显著降低锁失败。
+BUSY_TIMEOUT_MS = 30000
+
+
 def connect(path=KB):
+    """打开一个库连接，统一设好 WAL 与 busy_timeout。
+
+    busy_timeout 设到连接上会就地改库的持久设置，
+    后续任何进程打开同一库都会继承，因此不必每个调用点都重复设置。
+    """
     if path == KB:
         paths.ensure()
     os.makedirs(os.path.dirname(path), exist_ok=True)
-    conn = sqlite3.connect(path, timeout=15)
+    conn = sqlite3.connect(path, timeout=30)
     conn.row_factory = sqlite3.Row
-    conn.execute("PRAGMA busy_timeout=15000")
+    # WAL：读不阻塞写、写不阻塞读，缓解面板/采集/LLM 并发
+    try:
+        conn.execute("PRAGMA journal_mode=WAL")
+        conn.execute(f"PRAGMA busy_timeout={BUSY_TIMEOUT_MS}")
+    except sqlite3.Error:
+        pass
     return conn
 
 

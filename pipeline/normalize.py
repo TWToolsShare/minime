@@ -121,7 +121,7 @@ class Writer:
     def __init__(self, conn, manifest=None, full=True):
         self.c = conn
         self.full = full
-        self.manifest = manifest or sqlite3.connect(MANIFEST)
+        self.manifest = manifest or paths.db_connect(MANIFEST)
         self.stats = {"atom": 0, "dup": 0, "source": 0, "facet": 0}
         if not full:
             return
@@ -618,8 +618,7 @@ def ingest_workspace_index(w):
     idx = paths.INDEX
     if not os.path.exists(idx):
         return
-    db = sqlite3.connect(idx)
-    db.row_factory = sqlite3.Row
+    db = paths.db_connect(idx, row_factory=sqlite3.Row)
     rows = db.execute("""
         SELECT w.workspace_id, w.path, w.name, w.kind, w.sessions,
                COUNT(s.session_id) AS n_sessions,

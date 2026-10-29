@@ -168,8 +168,7 @@ def _trim_raw(keep, dry_run=False):
     """
     if keep <= 0 or not os.path.exists(MANIFEST):
         return 0
-    m = sqlite3.connect(MANIFEST, timeout=15)
-    m.row_factory = sqlite3.Row
+    m = paths.db_connect(MANIFEST, row_factory=sqlite3.Row)
     try:
         rows = m.execute(
             "SELECT sha256, kind, source, path FROM raw_object"
@@ -345,9 +344,7 @@ def main():
     ap.add_argument("--similarity", type=float, default=None)
     ap.add_argument("--event-retention-days", type=int, default=None)
     args = ap.parse_args()
-    conn = sqlite3.connect(args.db, timeout=15)
-    conn.row_factory = sqlite3.Row
-    conn.execute("PRAGMA busy_timeout=15000")
+    conn = paths.db_connect(args.db, row_factory=sqlite3.Row)
     out = run(conn, dry_run=args.dry_run, similarity=args.similarity,
               event_retention_days=args.event_retention_days)
     print(json.dumps(out, ensure_ascii=False, indent=2))

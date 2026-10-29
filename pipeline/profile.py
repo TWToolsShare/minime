@@ -37,8 +37,7 @@ def sat(n, mid):
 
 def collect(conn):
     atoms = conn.execute("SELECT * FROM atom WHERE state='active'").fetchall()
-    tdb = sqlite3.connect(MANIFEST)
-    tdb.row_factory = sqlite3.Row
+    tdb = paths.db_connect(MANIFEST, row_factory=sqlite3.Row)
     turns = tdb.execute("SELECT session_id,turn_id,ts,n_files,n_added,n_modified,"
                         "additions,deletions FROM turn").fetchall()
     turn_files = tdb.execute("SELECT session_id,turn_id,path FROM turn_file").fetchall()

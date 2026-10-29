@@ -216,8 +216,7 @@ def api_profile():
 
 def api_stats():
     conn = R.connect()
-    m = sqlite3.connect(paths.MANIFEST)
-    m.row_factory = sqlite3.Row
+    m = paths.db_connect(paths.MANIFEST, row_factory=sqlite3.Row)
     raw = m.execute("SELECT COUNT(*) n, COALESCE(SUM(size),0) b FROM raw_object").fetchone()
     turns = m.execute("SELECT COUNT(*) n FROM turn").fetchone()["n"]
     files = m.execute("SELECT COUNT(*) n FROM turn_file").fetchone()["n"]
@@ -249,8 +248,7 @@ def api_workspaces(qs):
     idx = paths.INDEX
     if not os.path.exists(idx):
         return {"workspaces": [], "total_sessions": 0}
-    conn = sqlite3.connect(idx)
-    conn.row_factory = sqlite3.Row
+    conn = paths.db_connect(idx, row_factory=sqlite3.Row)
     rows = conn.execute("""
         SELECT w.workspace_id, w.name, w.path, w.kind, w.sessions,
                COUNT(s.session_id) AS indexed_sessions,
@@ -701,7 +699,7 @@ def main():
         import base as collector_base  # noqa: PLC0415
         collector_base.init_db().close()      # manifest.db: raw_object / collect_state
         import extract_turns as ET  # noqa: PLC0415
-        m = sqlite3.connect(paths.MANIFEST)   # manifest.db: turn / turn_file
+        m = paths.db_connect(paths.MANIFEST)   # manifest.db: turn / turn_file
         try:
             ET.ensure_schema(m)
             m.commit()

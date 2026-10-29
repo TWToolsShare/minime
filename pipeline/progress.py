@@ -42,7 +42,7 @@ def _turn_stats():
     """候选轮次统计（manifest.db）。"""
     if not os.path.exists(MANIFEST):
         return {"turns": 0, "candidates": 0}
-    m = sqlite3.connect(MANIFEST)
+    m = paths.db_connect(MANIFEST)
     try:
         turns = m.execute("SELECT COUNT(*) FROM turn").fetchone()[0]
         cand = m.execute("""SELECT COUNT(*) FROM turn
@@ -58,8 +58,7 @@ def _kb_stats():
     if not os.path.exists(KB):
         return {"atoms": 0, "processed": 0, "processed_with_atoms": 0, "llm_atoms": 0,
                 "by_source": {}, "by_kind": {}, "last_processed_at": None}
-    c = sqlite3.connect(KB)
-    c.row_factory = sqlite3.Row
+    c = paths.db_connect(KB, row_factory=sqlite3.Row)
     try:
         atoms = c.execute("SELECT COUNT(*) FROM atom WHERE state='active'").fetchone()[0]
         processed, with_atoms, last = c.execute(
@@ -89,8 +88,7 @@ def _collect_stats():
     if not os.path.exists(MANIFEST):
         return []
     import config  # noqa: PLC0415
-    m = sqlite3.connect(MANIFEST)
-    m.row_factory = sqlite3.Row
+    m = paths.db_connect(MANIFEST, row_factory=sqlite3.Row)
     try:
         rows = m.execute("SELECT adapter,last_run,last_status,fails,runs,last_elapsed"
                          " FROM collect_state ORDER BY adapter").fetchall()
@@ -149,7 +147,7 @@ def snapshot():
 def _jobs_conn():
     paths.ensure()
     os.makedirs(os.path.dirname(JOBS), exist_ok=True)
-    c = sqlite3.connect(JOBS, check_same_thread=False)
+    c = paths.db_connect(JOBS, check_same_thread=False)
     c.executescript("""
     CREATE TABLE IF NOT EXISTS job (
       job_id     TEXT PRIMARY KEY,

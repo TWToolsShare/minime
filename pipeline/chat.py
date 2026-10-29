@@ -43,9 +43,7 @@ SYSTEM = """你是用户的个人知识分身。你只依据下面提供的「�
 
 def connect():
     paths.ensure()
-    os.makedirs(os.path.dirname(CHAT_DB), exist_ok=True)
-    c = sqlite3.connect(CHAT_DB)
-    c.row_factory = sqlite3.Row
+    c = paths.db_connect(CHAT_DB, row_factory=sqlite3.Row)
     c.executescript("""
     CREATE TABLE IF NOT EXISTS session (
       id         TEXT PRIMARY KEY,

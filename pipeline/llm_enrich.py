@@ -118,8 +118,7 @@ def health(cfg):
 
 def pick_targets(conn, cfg, limit):
     """挑还没被 LLM 归纳过的、有实质改动的轮次（大改动 + 最近优先）。"""
-    tdb = sqlite3.connect(MANIFEST)
-    tdb.row_factory = sqlite3.Row
+    tdb = paths.db_connect(MANIFEST, row_factory=sqlite3.Row)
     done = {r[0] for r in conn.execute("SELECT source_ref FROM llm_cursor")}
     rows = tdb.execute("""
         SELECT t.turn_id, t.session_id, t.ts, t.n_files, t.n_added, t.n_modified,
@@ -144,7 +143,7 @@ def pick_targets(conn, cfg, limit):
 
 def project_of_session(session_id):
     try:
-        db = sqlite3.connect(INDEX)
+        db = paths.db_connect(INDEX)
         row = db.execute("""SELECT w.name FROM session s JOIN workspace w
                             ON w.workspace_id=s.workspace_id WHERE s.session_id=?""",
                          (session_id,)).fetchone()

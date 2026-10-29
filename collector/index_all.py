@@ -101,7 +101,7 @@ def ensure_collected(conn):
 
 
 def build():
-    conn = sqlite3.connect(INDEX)
+    conn = paths.db_connect(INDEX)
     conn.executescript(SCHEMA)
     for t in ("workspace", "session", "file_history"):
         conn.execute(f"DELETE FROM {t}")

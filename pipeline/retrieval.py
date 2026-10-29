@@ -44,11 +44,8 @@ FACET_DIMS = ("scene", "project", "topic", "tech", "activity", "period", "qualit
 
 
 def connect():
-    conn = sqlite3.connect(KB, timeout=15)
-    conn.row_factory = sqlite3.Row
-    # 后台采集/归纳可能正持写锁，这里等一会儿而不是直接报 locked
-    conn.execute("PRAGMA busy_timeout=15000")
-    return conn
+    """读路径也走统一连接工厂：WAL + 大 busy_timeout，避免读撞写锁。"""
+    return paths.db_connect(KB, row_factory=sqlite3.Row)
 
 
 _GATE_READY = False

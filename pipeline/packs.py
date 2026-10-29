@@ -128,10 +128,7 @@ def judge_sensitivity(title="", body="", scope=None):
 
 def _connect(path=KB):
     """统一连接：加忙等待，避免和后台采集/归纳抢写时报 database is locked。"""
-    c = sqlite3.connect(path, timeout=15)
-    c.row_factory = sqlite3.Row
-    c.execute("PRAGMA busy_timeout=15000")
-    return c
+    return paths.db_connect(path, row_factory=sqlite3.Row)
 
 
 # ---------------------------------------------------------------- 迁移 / 初始化

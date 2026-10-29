@@ -152,8 +152,7 @@ def _sched_installed():
 def cmd_status():
     import sqlite3  # noqa: PLC0415
     import progress as P  # noqa: PLC0415
-    kb = sqlite3.connect(paths.KB)
-    kb.row_factory = sqlite3.Row
+    kb = paths.db_connect(paths.KB, row_factory=sqlite3.Row)
     try:
         atoms = kb.execute("SELECT COUNT(*) FROM atom WHERE state='active'").fetchone()[0]
         ents = kb.execute("SELECT COUNT(*) FROM entity").fetchone()[0]
@@ -401,7 +400,7 @@ def cmd_restore():
     kb_path = paths.KB
     before = 0
     if os.path.exists(kb_path):
-        c = sqlite3.connect(kb_path)
+        c = paths.db_connect(kb_path)
         try:
             before = c.execute("SELECT COUNT(*) FROM atom WHERE state='active'").fetchone()[0]
         except sqlite3.Error:

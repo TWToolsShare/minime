@@ -13,9 +13,29 @@
 """
 import os
 import shutil
+import sqlite3
 import sys
 
 CODE_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+
+
+def db_connect(path, row_factory=None, timeout=30, check_same_thread=True):
+    """统一数据库连接工厂：持久化 WAL + 大 busy_timeout，缓解并发锁。
+
+    任何到 minime 数据库的读写都应走这里，避免裸 sqlite3.connect 各设各的、
+    默认值（busy_timeout=5000ms）偏小导致 database is locked。
+    check_same_thread=False 用于需跨线程访问的库（如 jobs.db、Web 面板共享）。
+    """
+    os.makedirs(os.path.dirname(path), exist_ok=True)
+    conn = sqlite3.connect(path, timeout=timeout, check_same_thread=check_same_thread)
+    if row_factory is not None:
+        conn.row_factory = row_factory
+    try:
+        conn.execute("PRAGMA journal_mode=WAL")
+        conn.execute("PRAGMA busy_timeout=30000")
+    except sqlite3.Error:
+        pass
+    return conn
 
 
 def _default_home():
@@ -63,7 +83,7 @@ def has_kb(path=None):
         return False
     import sqlite3  # noqa: PLC0415
     try:
-        c = sqlite3.connect(path)
+        c = db_connect(path)
         ok = c.execute("SELECT 1 FROM sqlite_master"
                        " WHERE type='table' AND name='atom'").fetchone()
         c.close()
