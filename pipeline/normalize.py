@@ -133,6 +133,12 @@ class Writer:
         """)
         for t in ("atom", "atom_facet", "atom_source", "facet", "entity", "relation"):
             self.c.execute(f"CREATE TEMP TABLE {t}_new AS SELECT * FROM {t} WHERE 0")
+        # CREATE TABLE AS SELECT 只复制列、不复制索引：add_atom 每条都按 fingerprint
+        # 查重，临时表缺索引会退化成全表扫描（O(n²)，上万条知识时清洗会卡到几十分钟）。
+        self.c.execute("CREATE INDEX IF NOT EXISTS tmp_atom_new_fp "
+                       "ON atom_new(fingerprint)")
+        self.c.execute("CREATE INDEX IF NOT EXISTS tmp_atom_source_new_sha "
+                       "ON atom_source_new(atom_id)")
         self.c.execute("DELETE FROM atom_fts")
         self.c.commit()
 
