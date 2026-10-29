@@ -28,6 +28,11 @@ class Summarizer:
         self.threshold = int(self.llm.get("summary_threshold") or 1200)
         self.budget = int(self.llm.get("summary_max_per_run") or 0)
         self.model = self.llm.get("model") or ""
+        # 整轮摘要的时间上限：清洗在重建模式下全程持写锁，模型一旦变慢或卡住，
+        # 整条流水线连同面板都会失去响应。超时后本轮全部退回截断摘要。
+        _budget = int(self.llm.get("summary_time_budget_s", 300) or 0)
+        self.deadline = time.time() + _budget if _budget > 0 else float("inf")
+        self.timeout_hits = 0
         self.used = 0          # 本次实际调用模型的次数
         self.cached = 0        # 命中缓存的次数
         self.failed = 0
@@ -65,6 +70,8 @@ class Summarizer:
             return body[:160]
         if self._fails >= 3:           # 连续失败就当模型不可用，本轮回退
             return body[:160]
+        if time.time() >= self.deadline:   # 本轮总时长用完，不再等模型
+            return body[:160]
         self.used += 1
         try:
             # 调模型前先放开写锁，避免几十秒的网络等待卡住面板或其他流水线
@@ -73,6 +80,8 @@ class Summarizer:
         except Exception:  # noqa: BLE001
             self.failed += 1
             self._fails += 1
+            if time.time() >= self.deadline:
+                self.timeout_hits += 1
             return body[:160]
         self._fails = 0
         out = (out or "").strip().strip('"“”')
@@ -88,6 +97,9 @@ class Summarizer:
     def _call(self, text):
         import llm_enrich as L  # noqa: PLC0415 — 延迟导入，避免与 normalize 循环依赖
         timeout = min(int(self.llm.get("timeout_s") or 120), 90)
+        # 剩余预算比单次超时还短时按剩余算，避免最后一两次把整轮拖过截止时间
+        left = max(1.0, self.deadline - time.time())
+        timeout = min(timeout, left)
         return L.llm_chat({"llm": self.llm}, [
             {"role": "system", "content": SYSTEM},
             {"role": "user", "content": text},
@@ -95,4 +107,6 @@ class Summarizer:
 
     def stats(self):
         return {"enabled": self.enabled, "threshold": self.threshold,
-                "used": self.used, "cached": self.cached, "failed": self.failed}
+                "used": self.used, "cached": self.cached, "failed": self.failed,
+                "time_budget_s": int(self.llm.get("summary_time_budget_s", 300) or 0),
+                "timed_out": self.timeout_hits}

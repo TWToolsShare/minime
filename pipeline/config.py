@@ -19,7 +19,7 @@ DEFAULTS = {
         "max_tokens": 2048, "disable_thinking": True,
         "max_atoms_per_run": 12, "batch_size": 4, "temperature": 0.2,
         "prompt_lang": "zh", "summary_threshold": 1200,
-        "summary_max_per_run": 100,
+        "summary_max_per_run": 100, "summary_time_budget_s": 300,
     },
     "answer": {
         # llm=大模型理解并作答（默认，检索也走向量） / rules=关键词规则问答（纯本地、检索只用关键词）

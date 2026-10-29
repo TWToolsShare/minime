@@ -31,17 +31,26 @@ def ensure_entities(conn):
 
 
 def build_relations(conn):
-    conn.execute("DELETE FROM relation")
+    """重建关系表。
+
+    写入 relation_new，最后用单条事务原子替换 relation：
+    旧实现先 DELETE 再逐条插入 20 多万行且只在结尾提交，整个期间
+    面板的 /api/graph 都拿不到读锁，表现为图谱打不开或长时间转圈。
+    """
+    conn.execute("DROP TABLE IF EXISTS relation_new")
+    conn.execute("CREATE TABLE relation_new("
+                 "src_id TEXT NOT NULL, dst_id TEXT NOT NULL, rel TEXT NOT NULL,"
+                 "weight REAL NOT NULL DEFAULT 1.0, atom_id TEXT,"
+                 "PRIMARY KEY(src_id, dst_id, rel))")
     # atom -> entity
     rows = conn.execute("""
         SELECT af.atom_id, f.dim, f.value FROM atom_facet af
         JOIN facet f ON f.facet_id=af.facet_id WHERE f.dim != 'topic'""").fetchall()
-    for r in rows:
-        dst = f"E:{r['dim']}:{r['value']}"
-        conn.execute(
-            "INSERT OR IGNORE INTO relation(src_id,dst_id,rel,weight,atom_id)"
-            " VALUES (?,?,?,?,?)",
-            (f"A:{r['atom_id']}", dst, "mentions", 1.0, r["atom_id"]))
+    conn.executemany(
+        "INSERT OR IGNORE INTO relation_new(src_id,dst_id,rel,weight,atom_id)"
+        " VALUES (?,?,?,?,?)",
+        ((f"A:{r['atom_id']}", f"E:{r['dim']}:{r['value']}", "mentions", 1.0, r["atom_id"])
+         for r in rows))
     # project uses tech（同一 atom 同时带 project 与 tech 标签）
     rows = conn.execute("""
         SELECT p.value AS project, t.value AS tech, COUNT(*) n
@@ -49,10 +58,11 @@ def build_relations(conn):
         JOIN atom_facet at ON at.atom_id=ap.atom_id
         JOIN facet t ON t.facet_id=at.facet_id AND t.dim='tech'
         GROUP BY 1,2""").fetchall()
-    for r in rows:
-        conn.execute(
-            "INSERT OR REPLACE INTO relation(src_id,dst_id,rel,weight,atom_id) VALUES (?,?,?,?,?)",
-            (f"E:project:{r['project']}", f"E:tech:{r['tech']}", "uses", float(r["n"]), None))
+    conn.executemany(
+        "INSERT OR REPLACE INTO relation_new(src_id,dst_id,rel,weight,atom_id)"
+        " VALUES (?,?,?,?,?)",
+        ((f"E:project:{r['project']}", f"E:tech:{r['tech']}", "uses", float(r["n"]), None)
+         for r in rows))
     # tech co_used
     rows = conn.execute("""
         SELECT a.value AS t1, b.value AS t2, COUNT(*) n
@@ -60,11 +70,25 @@ def build_relations(conn):
         JOIN atom_facet fb ON fb.atom_id=fa.atom_id
         JOIN facet b ON b.facet_id=fb.facet_id AND b.dim='tech'
         WHERE a.value < b.value GROUP BY 1,2 HAVING n > 1""").fetchall()
-    for r in rows:
-        conn.execute(
-            "INSERT OR REPLACE INTO relation(src_id,dst_id,rel,weight,atom_id) VALUES (?,?,?,?,?)",
-            (f"E:tech:{r['t1']}", f"E:tech:{r['t2']}", "co_used", float(r["n"]), None))
+    conn.executemany(
+        "INSERT OR REPLACE INTO relation_new(src_id,dst_id,rel,weight,atom_id)"
+        " VALUES (?,?,?,?,?)",
+        ((f"E:tech:{r['t1']}", f"E:tech:{r['t2']}", "co_used", float(r["n"]), None)
+         for r in rows))
     conn.commit()
+    # 原子换表：面板要么看到旧图谱，要么看到新图谱，不会看到中间态
+    conn.execute("BEGIN IMMEDIATE")
+    try:
+        conn.execute("DELETE FROM relation")
+        conn.execute("INSERT INTO relation(src_id,dst_id,rel,weight,atom_id)"
+                     " SELECT src_id,dst_id,rel,weight,atom_id FROM relation_new")
+        conn.commit()
+    except Exception:
+        conn.rollback()
+        raise
+    finally:
+        conn.execute("DROP TABLE IF EXISTS relation_new")
+        conn.commit()
 
 
 REL_CN = {"uses": "使用", "co_used": "同时使用", "part_of": "属于",
@@ -128,6 +152,10 @@ def graph_json(conn, limit_nodes=120, around=None):
 
     around 指定某个实体时，把它的直接邻居一并带上，保证从详情面板跳过去能定位到。
     """
+    # 全新数据目录里 kb.db 还没建表，此时按空图谱返回，不要让面板首屏报 500
+    if not conn.execute("SELECT 1 FROM sqlite_master WHERE type='table'"
+                        " AND name='entity'").fetchone():
+        return {"nodes": [], "edges": []}
     nodes = [dict(r) for r in conn.execute("""
         SELECT e.entity_id, e.type, e.name,
                (SELECT COUNT(*) FROM relation r WHERE r.dst_id=e.entity_id) AS degree

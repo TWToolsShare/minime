@@ -689,6 +689,26 @@ class Handler(BaseHTTPRequestHandler):
 
 
 def main():
+    # 数据目录被清空后 kb.db 还没有任何表，各接口会统一报 no such table。
+    # 启动时先把表结构建好，让面板在任何状态下都能打开，用户可以直接从页面点采集。
+    import schema  # noqa: PLC0415
+    try:
+        schema.init().close()
+    except Exception as e:  # noqa: BLE001 — 建表失败不该阻止面板启动
+        oplog.write("error", "web.schema_init", error=f"{type(e).__name__}: {e}")
+    try:
+        sys.path.insert(0, os.path.join(ROOT, "collector"))
+        import base as collector_base  # noqa: PLC0415
+        collector_base.init_db().close()      # manifest.db: raw_object / collect_state
+        import extract_turns as ET  # noqa: PLC0415
+        m = sqlite3.connect(paths.MANIFEST)   # manifest.db: turn / turn_file
+        try:
+            ET.ensure_schema(m)
+            m.commit()
+        finally:
+            m.close()
+    except Exception as e:  # noqa: BLE001
+        oplog.write("error", "web.manifest_init", error=f"{type(e).__name__}: {e}")
     srv = ThreadingHTTPServer(("127.0.0.1", PORT), Handler)
     print(f"minime web: http://127.0.0.1:{PORT}/")
     oplog.write("info", "web.start", port=PORT, pid=os.getpid())

@@ -53,6 +53,9 @@ FIELDS = [
     {"key": "llm.summary_max_per_run", "env": "", "type": "int", "min": 0, "max": 2000,
      "group": "本地大模型归纳", "label": "每次最多摘要",
      "hint": "0 表示不限制；摘要结果按内容缓存，后续清洗不会重复调用"},
+    {"key": "llm.summary_time_budget_s", "env": "", "type": "int", "min": 0, "max": 7200,
+     "group": "本地大模型归纳", "label": "摘要总时长上限（秒）",
+     "hint": "清洗期间给模型调用的总预算，用完后面的长文直接截断，避免模型卡住把整条流水线拖死；0 表示不限制"},
     # ---- 知识整理
     {"key": "consolidate.enabled", "env": "", "type": "bool",
      "group": "知识整理（定期）", "label": "启用定期压缩与取代",

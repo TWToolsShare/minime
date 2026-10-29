@@ -139,7 +139,8 @@ class Writer:
                        "ON atom_new(fingerprint)")
         self.c.execute("CREATE INDEX IF NOT EXISTS tmp_atom_source_new_sha "
                        "ON atom_source_new(atom_id)")
-        self.c.execute("DELETE FROM atom_fts")
+        # 不在这里清 atom_fts：重建期间面板仍要能搜索旧知识，
+        # 全文索引在 swap_in() 换表后由 rebuild_fts_tags() 整体重建。
         self.c.commit()
 
     def _target(self, table):
@@ -256,8 +257,9 @@ class Writer:
     def swap_in(self):
         """一次性把临时表换成正式表（单事务，面板不会看到中间态）。
 
-        entity/relation 由 graph.py 维护；这里若直接删会丢图谱，
-        因此临时表里没有的实体保持原样。
+        图谱（entity/relation）不在这里动：它由 graph.py 独立维护，
+        删除 24 万条关系会让重建期间的面板查询全部阻塞。换完 atom 系列后，
+        main() 再调 graph.main() 增量刷新图谱。
         """
         cols = {
             "atom": ("atom_id", "kind", "title", "body", "summary", "scope", "confidence",
@@ -275,12 +277,9 @@ class Writer:
         self.c.execute("CREATE TEMP TABLE keep_state AS"
                        " SELECT atom_id,state,supersedes,valid_until FROM atom"
                        " WHERE state!='active'")
+        # 旧 atom 里仍被引用的实体一并保留，避免图谱出现悬空边
         self.c.execute("BEGIN IMMEDIATE")
         try:
-            # entity/relation 由 graph.py 从 facet 推导，必须在 facet 换入后重建；
-            # 这里先清空，随后 main() 调用 graph.main() 补齐，避免图谱指向已消失的标签。
-            self.c.execute("DELETE FROM relation")
-            self.c.execute("DELETE FROM entity")
             for t, cs in cols.items():
                 self.c.execute(f"DELETE FROM {t}")
                 self.c.execute(f"INSERT OR IGNORE INTO {t}({','.join(cs)})"
@@ -291,7 +290,6 @@ class Writer:
                   supersedes=(SELECT k.supersedes FROM keep_state k WHERE k.atom_id=atom.atom_id),
                   valid_until=(SELECT k.valid_until FROM keep_state k WHERE k.atom_id=atom.atom_id)
                 WHERE atom_id IN (SELECT atom_id FROM keep_state)""")
-            # 已被删掉的原子，其图谱边与反馈保留但不再被检索命中；关系表不重建。
             # FTS 由 swap_in 之后的 rebuild_fts_tags() 整体重建，这里不逐条清理。
             self.c.commit()
         except Exception:
