@@ -32,9 +32,10 @@ SYSTEM = """你是用户的个人知识分身。你只依据下面提供的「�
 
 1. 能用知识片段回答的，直接给结论，不要复述问题、不要客套。
 2. 每个结论后用 [1] [2] 标注依据的片段编号，编号必须是给定的。
-3. 知识片段不足以回答时，明确说「知识库里没有这条」，再给基于通用经验的建议，并标注「（通用经验）」。
-4. 有相互矛盾的知识时，指出冲突并说明哪条证据更强（可信度/更新时间）。
-5. 回答用中文，简洁，不超过 400 字；必要时用短列表。
+3. 下面已经提供了知识片段，就说明这些片段就是知识库的检索结果。只要片段里出现了与问题相关的主题（哪怕措辞不同，例如问「前端五级架构」而片段讲「前端组件库方案」、问「DDD」而片段讲「领域分层」），就必须据实基于这些片段展开回答，不得判定为「知识库里没有」。
+4. 只有当提供的片段确实与问题主题毫无关联时，才明确说「知识库里没有这条」，再给基于通用经验的建议并标注「（通用经验）」。
+5. 有相互矛盾的知识时，指出冲突并说明哪条证据更强（可信度/更新时间）。
+6. 回答用中文，简洁，不超过 400 字；必要时用短列表。
 
 知识片段：
 {context}
@@ -192,6 +193,18 @@ def ask(sid, question, top_k=TOP_K):
         if not reply.strip():
             raise RuntimeError("模型返回为空，可能是超时或上下文过长")
         used = _extract_refs(reply, refs)
+        # 检索已召回相关片段，但模型既没引用又声称「没有」：强制作答一次，
+        # 避免明明有数据却回答「知识库里没有这条」（措辞不同导致的误判）。
+        if refs and not used and _denies(reply):
+            messages = messages[:-1] + [
+                {"role": "user", "content": question},
+                {"role": "assistant", "content": reply},
+                {"role": "user", "content":
+                 "你提供的知识片段就是检索结果，其中已经包含与问题相关的主题，"
+                 "必须依据这些片段回答，禁止再说「知识库里没有」。请基于片段重答。"},
+            ]
+            reply = L.llm_chat(cfg, messages, timeout=180)
+            used = _extract_refs(reply, refs)
     else:
         # 规则作答：不加载模型，检索也只走关键词，整轮纯本地完成
         import answer as A  # noqa: PLC0415
@@ -236,6 +249,13 @@ def ask(sid, question, top_k=TOP_K):
             conn.close()
     return {"id": mid, "role": "assistant", "content": reply, "refs": used,
             "created_at": now, "elapsed_s": elapsed}
+
+
+def _denies(reply):
+    """回复是否在声称知识库没有相关内容。"""
+    t = reply.lower()
+    return ("知识库里没有" in t or "知识库里 没有" in t or "没有这条" in t
+            or "库里没有" in t or "没有找到相关资料" in t or "无法从知识" in t)
 
 
 def _extract_refs(reply, refs):

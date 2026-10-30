@@ -32,8 +32,22 @@ STEPS = [
     ("graph", ["pipeline/graph.py"]),
     ("llm", ["pipeline/llm_enrich.py"]),
     ("profile", ["pipeline/profile.py"]),
+    ("embed", ["run/minime.py", "embed", "--wait", "--pipeline"]),
     ("sync", ["pipeline/memory_sync.py"]),
 ]
+
+
+def _embed_enabled():
+    """向量索引步骤的前置检查：未启用或服务不可达则返回 False（跳过该步）。"""
+    try:
+        import config as CFG  # noqa: PLC0415
+        import embed as E  # noqa: PLC0415
+    except Exception:  # noqa: BLE001
+        return False
+    c = CFG.load().get("embedding") or {}
+    if not c.get("enabled"):
+        return False
+    return bool(E.healthy(c))
 
 
 def run(cmd, env=None):
@@ -70,7 +84,18 @@ def main():
         if no_llm and name == "llm":
             report[name] = "skipped(--no-llm)"
             continue
-        out, err = run(cmd, {"MINIME_SUMMARY_DISABLED": "1"} if no_llm else None)
+        # 向量建索引：未启用或 embedding 服务不可达时直接跳过，不让它拖累主流程
+        if name == "embed" and not _embed_enabled():
+            report[name] = "skipped(向量检索未启用或不可达)"
+            continue
+        try:
+            out, err = run(cmd, {"MINIME_SUMMARY_DISABLED": "1"} if no_llm else None)
+        except RuntimeError as e:
+            # embed 这种「尽力而为」的步骤失败时降级为 skipped，不中断整轮流水线
+            if name == "embed":
+                report[name] = f"skipped(向量化失败: {str(e)[:80]})"
+                continue
+            raise
         try:
             start, end = out.find("{"), out.rfind("}")
             report[name] = json.loads(out[start:end + 1]) if start >= 0 else out.strip()

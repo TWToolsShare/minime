@@ -277,9 +277,19 @@ def cmd_embed(argv):
     import config as CFG  # noqa: PLC0415
     c = CFG.load().get("embedding") or {}
     if not c.get("enabled"):
+        # 流水线（pipeline）调度时，未启用视为可跳过的 skipped，不报错不阻断主流程
+        if "--pipeline" in argv:
+            print("向量检索未启用，跳过")
+            return 0
         print("! 向量检索未启用：minime set embedding.enabled true", file=sys.stderr)
         return 2
     mdl = E.model(c)
+    if not E.healthy(c):
+        if "--pipeline" in argv:
+            print("向量服务不可达，跳过")
+            return 0
+        print("! 向量服务不可达：检查 embedding.base_url / model", file=sys.stderr)
+        return 1
     if "--status" in argv:
         jobs = [j for j in P.list_jobs(30) if j["kind"] == "embed"]
         if not jobs:

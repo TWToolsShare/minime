@@ -38,10 +38,20 @@ def cfg():
 
 
 def healthy(c=None):
-    """开关打开且填了 base_url / model 才算可用。"""
+    """开关打开且填了 base_url / model，且带 key 探活成功才算可用。
+
+    只检查「配置齐 + 服务可达」，不联网探测会导致 401/不可达被误判为可用，
+    进而让流水线里的向量步骤硬失败而非优雅跳过。
+    """
     c = c if c is not None else cfg()
-    return bool(c.get("enabled") and (c.get("base_url") or "").strip()
-                and (c.get("model") or "").strip())
+    if not (c.get("enabled") and (c.get("base_url") or "").strip()
+            and (c.get("model") or "").strip()):
+        return False
+    try:
+        embed_texts(c, ["ping"], timeout=min(15.0, float(c.get("query_timeout_s") or 15)))
+        return True
+    except Exception:  # noqa: BLE001  -- 任意网络/鉴权错误都视为不可用
+        return False
 
 
 def model(c=None):
