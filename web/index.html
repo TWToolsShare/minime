@@ -782,12 +782,23 @@ const I18N = {
   '处理进度': {en: 'Progress'},
   '刷新于': {en: 'Refreshed at'},
   '按 ① 采集、② 清洗、③ 归纳依次执行；② 完成后即可在「对话」中提问，③ 提升回答质量': {en: 'Run ① Collect, ② Clean, ③ Summarize in order; ask in Chat after ②, quality improves after ③'},
+  '按 ① 读取数据、② 整理成知识、③ 补充深度总结 依次执行；② 完成后即可在「对话」中提问，③ 提升回答质量': {en: 'Run ① read data, ② organize into knowledge, ③ add deeper summaries; ask in Chat after ②, quality improves after ③'},
   '采集': {en: 'Collect'},
   '清洗成知识': {en: 'Clean into knowledge'},
-  'LLM 归纳': {en: 'LLM summarize'},
+  '读取原始数据': {en: 'Read raw data'},
+  '整理成知识': {en: 'Organize into knowledge'},
+  '深度总结': {en: 'Deep summarize'},
+  '从 Trae 会话、记忆和本地文件里读取原始记录，存到本地库；已有数据不覆盖。': {en: 'Read raw records from Trae sessions, memory and local folders into the local store; existing data is kept.'},
+  '把原始记录拆成一条条可检索的知识（含标题、标签、时间），已有的知识不会丢失或被改动。': {en: 'Split raw records into searchable knowledge items (title, tags, time); existing knowledge is kept unchanged.'},
+  '用本地模型通读改动大的会话，提炼出决策、偏好、踩坑等经验知识，让回答更有深度。': {en: 'A local model reads through sessions with big changes and extracts decisions, preferences and lessons for deeper answers.'},
   '再采一次': {en: 'Collect again'},
-  '开始采集': {en: 'Start collecting'},
+  '重新采集': {en: 'Collect again'},
   '重新清洗': {en: 'Re-clean'},
+  '整理新数据': {en: 'Organize new data'},
+  '开始采集': {en: 'Start collecting'},
+  '开始整理': {en: 'Start organizing'},
+  '总结一批（上限 {0} 轮；待处理 {1} 轮）': {en: 'Summarize a batch (max {0}; {1} pending)'},
+  '已全部总结': {en: 'All summarized'},
   '启用': {en: 'Enabled'},
   '已停用': {en: 'Disabled'},
   '已启用': {en: 'Enabled'},
@@ -819,6 +830,7 @@ const I18N = {
   '快照共 {0} 轮，其中 {1} 轮有实质改动（改动 ≥ 5 行或新增 ≥ 2 个文件）。已归纳 {2} 轮，其中 {3} 轮产出了新知识。{4}': {en: 'Snapshot has {0} turns, {1} with real changes (≥5 lines or ≥2 new files). Summarized {2}, of which {3} produced knowledge. {4}'},
   '请在「设置」中启用「LLM 归纳」后再执行': {en: 'Enable "LLM summarize" in Settings before running'},
   '立即归纳一批': {en: 'Summarize a batch now'},
+  '总结一批': {en: 'Summarize a batch'},
   '归纳全部（{0} 轮）': {en: 'Summarize all ({0} turns)'},
   '归纳全部': {en: 'Summarize all'},
   '更新知识库（采集 → 索引 → 清洗）': {en: 'Update knowledge base (collect → index → clean)'},
@@ -1118,7 +1130,7 @@ const I18N = {
   '全部立即采集': {en: 'Collect all now'},
   '采集仅获取原始数据，清洗后才会生成知识 → 在「处理进度」执行「更新知识库」': {en: 'Collecting only fetches raw data; cleaning turns it into knowledge → run "Update knowledge base" in Progress'},
   '立即采集': {en: 'Collect now'},
-  '已开始采集「{0}」，完成后请在「处理进度」清洗': {en: 'Started collecting "{0}"; run clean in Progress when done'},
+  '已开始采集「{0}」，完成后请在「处理进度」整理成知识': {en: 'Started collecting "{0}"; run "Organize into knowledge" in Progress when done'},
   '全部采集源已开始采集': {en: 'All collectors started'},
   '＋ 新对话': {en: '+ New chat'},
   '新对话': {en: 'New chat'},
@@ -1531,14 +1543,14 @@ async function loadProgress(silent){
     </div>`;
 
   view.innerHTML = `<h2>${T('处理进度')} <span class="kv">${T('刷新于')} ${fmtT(d.generated_at)}</span>
-    <span class="tabs-hint">${T('按 ① 采集、② 清洗、③ 归纳依次执行；② 完成后即可在「对话」中提问，③ 提升回答质量')}</span></h2>
+    <span class="tabs-hint">${T('按 ① 读取数据、② 整理成知识、③ 补充深度总结 依次执行；② 完成后即可在「对话」中提问，③ 提升回答质量')}</span></h2>
     <div class="guide">
-      ${stepHTML(step1, '①', T('采集'), T('采集 Trae 会话、记忆与本地目录；共 {0} 个采集源。', (d.collect||[]).length),
-                 'g-collect', step1 ? T('再采一次') : T('开始采集'))}
-      ${stepHTML(step2, '②', T('清洗成知识'), T('拆分为可检索的知识条目并自动打标签；当前 {0} 条。', d.atoms),
-                 'g-normalize', step2 ? T('重新清洗') : T('开始清洗'))}
-      ${stepHTML(step3, '③', T('LLM 归纳'), T('提炼决策依据与经验教训；待处理 {0} 轮。', d.pending),
-                 'g-llm', d.pending ? T('归纳一批（上限 {0} 轮；待处理 {1} 轮）', d.per_run, d.pending) : T('已全部归纳'))}
+      ${stepHTML(step1, '①', T('读取原始数据'), T('从 Trae 会话、记忆和本地文件里读取原始记录，存到本地库；已有数据不覆盖。'),
+                 'g-collect', step1 ? T('重新采集') : T('开始采集'))}
+      ${stepHTML(step2, '②', T('整理成知识'), T('把原始记录拆成一条条可检索的知识（含标题、标签、时间），已有的知识不会丢失或被改动。'),
+                 'g-normalize', step2 ? T('整理新数据') : T('开始整理'))}
+      ${stepHTML(step3, '③', T('深度总结'), T('用本地模型通读改动大的会话，提炼出决策、偏好、踩坑等经验知识，让回答更有深度。'),
+                 'g-llm', d.pending ? T('总结一批（上限 {0} 轮；待处理 {1} 轮）', d.per_run, d.pending) : T('已全部总结'))}
     </div>
     ${step2 ? `<div class="banner">
       <span class="txt"><b>${T('下一步：在「对话」中提问。')}</b>
@@ -1556,7 +1568,7 @@ async function loadProgress(silent){
       <div class="kv">${T('快照共 {0} 轮，其中 {1} 轮有实质改动（改动 ≥ 5 行或新增 ≥ 2 个文件）。已归纳 {2} 轮，其中 {3} 轮产出了新知识。{4}',
         d.turns, d.candidates, d.processed, d.processed_with_atoms, d.last_processed_at?`${T('最近一次：')}${fmtT(d.last_processed_at)}`:'')}</div>
       <div class="acts" style="margin-top:10px">
-        <button class="primary" id="run-llm">${T('立即归纳一批')}</button>
+        <button class="primary" id="run-llm">${T('总结一批')}</button>
         <button id="run-llm-all" ${d.pending?'':'disabled'}>${T('归纳全部')}${d.pending?`(${d.pending} ${T('轮')})`:''}</button>
         <button id="run-full">${T('更新知识库（采集 → 索引 → 清洗）')}</button>
         ${d.enabled?'':'<span class="kv">'+T('请在「设置」中启用「LLM 归纳」后再执行')+'</span>'}
@@ -3046,7 +3058,7 @@ async function loadCollectors(){
   $$('[data-run]').forEach(b => b.onclick = () => withBusy(b, '提交中…', async () => {
     const r = await post('/api/collectors', {adapter: b.dataset.run});
     if (r.error) return toast(r.error, 'error');
-    toast(T('已开始采集「{0}」，完成后请在「处理进度」清洗', b.dataset.label), 'ok');
+    toast(T('已开始采集「{0}」，完成后请在「处理进度」整理成知识', b.dataset.label), 'ok');
     pollJobs();
     setTimeout(loadCollectors, 1200);
   }));
@@ -3351,7 +3363,7 @@ document.addEventListener('keydown', e => {
 
 // ---------------- 帮助：面板内一页说明，避免第一次打开不知道干什么
 const GUIDE_STEPS = [
-  ['① 处理进度', '按「采集 → 清洗 → 归纳」顺序执行；卡片会显示当前进度和下一步操作。'],
+  ['① 处理进度', '按「读取数据 → 整理成知识 → 深度总结」顺序执行；卡片会显示当前进度和下一步操作。'],
   ['② 对话', '基于知识库回答问题，并以 [1][2] 标注来源；点击来源可查看原文。同一会话支持连续追问，左侧为历史会话。'],
   ['③ 知识浏览', '查看具体知识条目；左侧分组可折叠筛选。「采用 / 引用 / 不相关」会调整后续检索权重，连续不相关只降权，可在「状态」中恢复。'],
   ['④ 知识图谱', '展示知识实体及其关系。点击节点可查看详情与关联节点，点击关联项可跳转并居中定位。'],
