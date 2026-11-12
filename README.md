@@ -60,6 +60,8 @@ minime web
 
 Then open **http://127.0.0.1:8765/**.
 
+> `minime web` runs the panel in the background by default: the command returns immediately and keeps serving after you close the terminal. `--stop` stops it, `--restart` restarts it, `--foreground` runs it in the foreground for debugging.
+
 For the first run, this order works well:
 
 1. Go to **Progress** → click **Full update** → wait for it to finish
@@ -272,7 +274,9 @@ minime migrate --from /path/to/old/minime
 
 ```bash
 # Daily
-minime web                     Open the panel
+minime web                     Open the panel (background, survives terminal close)
+minime web --stop              Stop the background panel
+minime web --restart           Restart the background panel
 minime status                  Collection / enrichment / schedule / service at a glance
 minime chat "question"         Ask from the command line
 

@@ -13,13 +13,17 @@
 import array
 import base64
 import hashlib
+import http.client
 import json
 import math
 import os
 import re
+import socket
+import threading
 import time
 import urllib.error
 import urllib.request
+from urllib.parse import urlsplit
 
 import config
 import paths
@@ -70,12 +74,47 @@ def embed_texts(c, texts, timeout=None):
     for i in range(0, len(texts), batch):
         part = texts[i:i + batch]
         payload = json.dumps({"model": mdl, "input": part}).encode()
-        req = urllib.request.Request(
-            base + "/embeddings", data=payload, method="POST",
-            headers={"Content-Type": "application/json",
-                     "Authorization": f"Bearer {c.get('api_key') or 'none'}"})
-        with urllib.request.urlopen(req, timeout=timeout or DEFAULT_TIMEOUT) as r:
-            data = json.loads(r.read().decode("utf-8", "replace"))
+        t = timeout or DEFAULT_TIMEOUT
+        # 与 llm_chat 同理：urlopen 的 timeout 管不住「上游持续缓慢回包」，
+        # 一次 embeddings 能挂十几分钟并占住流水线写锁。到点直接断 socket。
+        # 注意：http.client 在 getresponse() 里会把 conn.sock 换成文件包装层，
+        # 所以必须提前显式 connect 并留住真实 socket 引用再发请求。
+        sock_box, fired = [], []
+
+        def _abort():
+            fired.append(1)
+            if sock_box:
+                try:
+                    sock_box[0].shutdown(socket.SHUT_RDWR)
+                except OSError:
+                    pass
+
+        watchdog = threading.Timer(t + 15, _abort)
+        watchdog.daemon = True
+        watchdog.start()
+        u = urlsplit(base + "/embeddings")
+        conn = None
+        try:
+            conn = http.client.HTTPSConnection(u.hostname, u.port, timeout=t) \
+                if u.scheme == "https" else http.client.HTTPConnection(
+                    u.hostname, u.port, timeout=t)
+            conn.connect()
+            sock_box.append(conn.sock)
+            conn.request("POST", u.path or "/", body=payload, headers={
+                "Content-Type": "application/json",
+                "Authorization": f"Bearer {c.get('api_key') or 'none'}",
+            })
+            raw = conn.getresponse().read()
+            if fired:
+                raise RuntimeError(f"embedding 响应超过 {t + 15}s 未完成")
+            data = json.loads(raw.decode("utf-8", "replace"))
+        finally:
+            watchdog.cancel()
+            if conn is not None:
+                try:
+                    conn.close()
+                except Exception:  # noqa: BLE001
+                    pass
         items = sorted(data.get("data") or [], key=lambda x: x.get("index", 0))
         vecs = [it.get("embedding") for it in items]
         if len(vecs) != len(part) or any(not v for v in vecs):
@@ -180,41 +219,59 @@ def ensure(conn):
     conn.execute("""CREATE TABLE IF NOT EXISTS atom_embedding(
         atom_id TEXT NOT NULL, model TEXT NOT NULL, sig TEXT NOT NULL,
         vec TEXT NOT NULL, updated_at INTEGER NOT NULL, PRIMARY KEY(atom_id, model))""")
+    # 覆盖索引：vec 一条约 16 KB 且内联在主键索引页里，校验 sig 时若走主键会连带
+    # 读走整条向量；这个索引只含 id/model/sig，几千条校验从几十秒降到毫秒级。
+    conn.execute("""CREATE INDEX IF NOT EXISTS idx_atom_emb_sig
+        ON atom_embedding(atom_id, model, sig)""")
     conn.execute("""CREATE TABLE IF NOT EXISTS embedding_cache(
         key TEXT NOT NULL, model TEXT NOT NULL, sig TEXT NOT NULL,
         vec TEXT NOT NULL, updated_at INTEGER NOT NULL, PRIMARY KEY(key, model))""")
 
 
-def vectors_for(conn, c, rows):
+def vectors_for(conn, c, rows, deadline=None):
     """批量取知识向量：命中缓存复用，缺失的批量请求并落库。
 
     返回 (vectors, embedded)：vectors 形如 {atom_id: [float]}；embedded 是新算的条数。
+    deadline（time.monotonic 时点）到点即停止请求：首次全量向量化有几万条，
+    模型一慢就能把整轮清洗拖成几十分钟并全程占着写锁。缺的向量下一轮再补。
     """
     mdl = model(c)
     ids = [r["atom_id"] for r in rows]
     cached = {}
+    # 先只取 sig（不含 vec）：4096 维向量一条约 16KB，主键内联在索引页里，
+    # 连 vec 一起查会让每批都读走几十 MB，首次全量回算时足以把清洗拖成几十分钟。
     for i in range(0, len(ids), 500):   # 只查本批，避免每批都全表扫 atom_embedding
         part = ids[i:i + 500]
-        q = ("SELECT atom_id, sig, vec FROM atom_embedding WHERE model=?"
+        q = ("SELECT atom_id, sig FROM atom_embedding INDEXED BY idx_atom_emb_sig"
+             " WHERE model=?"
              f" AND atom_id IN ({','.join('?' * len(part))})")
         for r in conn.execute(q, (mdl, *part)):
-            cached[r["atom_id"]] = (r["sig"], r["vec"])
+            cached[r["atom_id"]] = r["sig"]
     out, todo = {}, []
     for row in rows:
         text = text_of(row)
         sig = signature(text, text_mode(c))
-        hit = cached.get(row["atom_id"])
-        if hit and hit[0] == sig:
+        if cached.get(row["atom_id"]) == sig:
+            todo.append((row["atom_id"], text, sig, True))
+        else:
+            todo.append((row["atom_id"], text, sig, False))
+    hits = [t[0] for t in todo if t[3]]
+    for i in range(0, len(hits), 500):   # 命中缓存的才去取向量
+        part = hits[i:i + 500]
+        q = ("SELECT atom_id, vec FROM atom_embedding WHERE model=?"
+             f" AND atom_id IN ({','.join('?' * len(part))})")
+        for r in conn.execute(q, (mdl, *part)):
             try:
-                out[row["atom_id"]] = decode(hit[1])
-                continue
+                out[r["atom_id"]] = decode(r["vec"])
             except (ValueError, TypeError):
                 pass
-        todo.append((row["atom_id"], text, sig))
+    todo = [(a, t, s) for a, t, s, hit in todo if a not in out]
 
     embedded = 0
     step = max(1, int(c.get("batch_size") or 32))
     for i in range(0, len(todo), step):
+        if deadline is not None and time.monotonic() > deadline:
+            break
         part = todo[i:i + step]
         vecs = embed_texts(c, [t for _a, t, _s in part])
         embedded += len(vecs)
@@ -224,7 +281,7 @@ def vectors_for(conn, c, rows):
             conn.execute(
                 "INSERT OR REPLACE INTO atom_embedding(atom_id,model,sig,vec,updated_at)"
                 " VALUES (?,?,?,?,?)", (aid, mdl, sig, encode(vec), now))
-    if embedded:
+        # 每批立即提交：万一中途中断，已算好的向量不会白算
         conn.commit()
     return out, embedded
 

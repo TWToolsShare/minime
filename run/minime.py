@@ -7,7 +7,10 @@
   collect           只采集
   status            现状 + 服务探活 + 「改了没重启」提示
   doctor            自检（逐项给出通过/失败与下一步）
-  web               启动 Web 面板（默认 http://127.0.0.1:8765/）
+  web               启动 Web 面板（后台常驻，默认 http://127.0.0.1:8765/）
+  web --foreground  前台运行（调试 / CI）
+  web --stop        停止后台面板
+  web --restart     重启后台面板
   mcp [--http]      启动 MCP 服务（默认 stdio，--http 跨 AI 共享）
   watch             常驻自动采集
   logs [-f] [-n N]  查看运行日志（默认尾部 80 行，-f 跟随）
@@ -24,6 +27,7 @@
 import json
 import os
 import re
+import signal
 import subprocess
 import sys
 import time
@@ -46,7 +50,8 @@ USAGE = """minime — 个人知识库 / 决策分身
   minime collect [--force]  只采集
   minime status             现状与健康
   minime doctor             自检
-  minime web                启动 Web 面板
+  minime web                后台启动面板（终端退出也常驻）
+  minime web --foreground   前台运行；--stop / --restart 管理后台服务
   minime mcp [--http]       启动 MCP 服务
   minime watch              常驻自动采集
   minime logs [-f] [-n 80]  查看运行日志
@@ -121,22 +126,190 @@ def _missing_deps():
     return missing
 
 
-def _check_port():
-    """端口被占用时给出明确处置，而不是抛 traceback。"""
-    import socket  # noqa: PLC0415
+def _web_port():
     import settings_schema as SS  # noqa: PLC0415
-    port = int((SS.load().get("web") or {}).get("port") or 8765)
+    try:
+        return int((SS.load().get("web") or {}).get("port") or 8765)
+    except Exception:  # noqa: BLE001
+        return 8765
+
+
+PID_PATH = os.path.join(paths.LOGS, "web.pid")
+WEB_LOG = os.path.join(paths.LOGS, "web.log")
+
+
+def _web_health(port=None):
+    """面板健康检查；未运行返回 None。"""
+    import urllib.request  # noqa: PLC0415
+    port = port or _web_port()
+    try:
+        with urllib.request.urlopen(
+                f"http://127.0.0.1:{port}/api/health", timeout=3) as r:
+            return json.loads(r.read().decode())
+    except Exception:  # noqa: BLE001
+        return None
+
+
+def _read_pid():
+    try:
+        with open(PID_PATH, encoding="utf-8") as f:
+            return int(f.read().strip())
+    except (OSError, ValueError):
+        return None
+
+
+def _pid_alive(pid):
+    """进程是否还在（只判断存在，不判断是不是 minime）。"""
+    try:
+        if os.name == "nt":
+            out = subprocess.run(["tasklist", "/FI", f"PID eq {pid}", "/NH"],
+                                 capture_output=True, text=True).stdout
+            return str(pid) in out
+        os.kill(pid, 0)
+        return True
+    except OSError:
+        return False
+
+
+def _check_port(port):
+    """端口被非 minime 进程占用时给出明确处置，而不是抛 traceback。"""
+    import socket  # noqa: PLC0415
     s = socket.socket()
     s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
     try:
         s.bind(("127.0.0.1", port))
     except OSError:
         print(f"端口 {port} 已被占用。", file=sys.stderr)
-        print(f"  如果是旧面板：先结束它（或直接访问 http://127.0.0.1:{port}/）", file=sys.stderr)
+        print(f"  如果读到「-」不是 minime 面板，先结束占用进程", file=sys.stderr)
         print(f"  换端口：minime set web.port 8766 && minime web", file=sys.stderr)
         sys.exit(1)
     finally:
         s.close()
+
+
+def _foreground():
+    """前台运行面板（调试 / CI / --foreground）。"""
+    port = _web_port()
+    print(f"minime web: 前台运行 http://127.0.0.1:{port}/  （Ctrl-C 退出）")
+    return _run("web/server.py")
+
+
+def _spawn_background():
+    """启动脱离终端的后台面板子进程，立即返回。"""
+    detail = r"""import os, runpy, sys
+pidp, script, root = sys.argv[1], sys.argv[2], sys.argv[3]
+os.makedirs(os.path.dirname(pidp), exist_ok=True)
+with open(pidp, "w") as f:
+    f.write(str(os.getpid()))
+sys.path.insert(0, root)
+runpy.run_path(script, run_name="__main__")
+"""
+    os.makedirs(paths.LOGS, exist_ok=True)
+    log = open(WEB_LOG, "ab")
+    kwargs = {}
+    if os.name == "nt":
+        kwargs["creationflags"] = (subprocess.DETACHED_PROCESS
+                                   | subprocess.CREATE_NEW_PROCESS_GROUP)
+    else:
+        kwargs["start_new_session"] = True
+    try:
+        proc = subprocess.Popen(
+            [PY, "-c", detail, PID_PATH, os.path.join(ROOT, "web/server.py"), ROOT],
+            cwd=ROOT, stdin=subprocess.DEVNULL, stdout=log, stderr=log, close_fds=True,
+            **kwargs)
+    finally:
+        log.close()
+    return proc
+
+
+def cmd_web(argv):
+    """默认后台常驻；--foreground 前台；--stop / --restart 管理后台服务。"""
+    if "--foreground" in argv:
+        return _foreground()
+    if "--stop" in argv:
+        return _stop_web()
+    if "--restart" in argv:
+        _stop_web()
+        return _start_web()
+    return _start_web()
+
+
+def _start_web():
+    port = _web_port()
+    h = _web_health(port)
+    if h:
+        print(f"minime web 已在运行：http://127.0.0.1:{port}/  （pid {h.get('pid', '-')}）")
+        return 0
+    _check_port(port)
+    try:
+        os.remove(PID_PATH)  # 清掉可能残留的 stale PID
+    except OSError:
+        pass
+    proc = _spawn_background()
+    # 等端口真正 listen；进程提前退出就说明启动失败
+    end = time.time() + 20
+    while time.time() < end:
+        if proc.poll() is not None:
+            print(f"minime: 后台面板启动失败（退出码 {proc.returncode}）", file=sys.stderr)
+            print(f"  日志：{WEB_LOG}", file=sys.stderr)
+            print("  排查：minime web --foreground", file=sys.stderr)
+            return 1
+        h = _web_health(port)
+        if h:
+            print(f"minime web 已后台运行：http://127.0.0.1:{port}/  （pid {h.get('pid', proc.pid)}）")
+            print(f"  停止：minime web --stop · 重启：minime web --restart · 日志：{WEB_LOG}")
+            return 0
+        time.sleep(0.2)
+    print(f"minime: 面板 20 秒内未就绪，但进程仍在（pid {proc.pid}）", file=sys.stderr)
+    print(f"  日志：{WEB_LOG}", file=sys.stderr)
+    return 1
+
+
+def _stop_web():
+    """停止后台面板：只终止确认属于 minime 的进程，避免 PID 复用误杀。"""
+    port = _web_port()
+    h = _web_health(port)
+    pid = (h or {}).get("pid") or _read_pid()
+    if not pid:
+        print("minime web 未在运行")
+        _clean_pid_file()
+        return 0
+    if h and h.get("pid") and _read_pid() and h["pid"] != _read_pid():
+        pid = h["pid"]
+    if not _pid_alive(pid):
+        print(f"面板进程 {pid} 已不存在，清理残留 PID 文件")
+        _clean_pid_file()
+        return 0
+    try:
+        if os.name == "nt":
+            subprocess.run(["taskkill", "/PID", str(pid), "/F"], capture_output=True)
+        else:
+            os.kill(pid, signal.SIGTERM)
+    except OSError as e:
+        print(f"停止失败：{e}", file=sys.stderr)
+        return 1
+    end = time.time() + 10
+    while time.time() < end:
+        if not _pid_alive(pid):
+            _clean_pid_file()
+            print(f"已停止 minime web（pid {pid}）")
+            return 0
+        time.sleep(0.2)
+    if os.name != "nt":
+        try:
+            os.kill(pid, signal.SIGKILL)
+        except OSError:
+            pass
+    _clean_pid_file()
+    print(f"已强制停止 minime web（pid {pid}）")
+    return 0
+
+
+def _clean_pid_file():
+    try:
+        os.remove(PID_PATH)
+    except OSError:
+        pass
 
 
 def _sched_installed():
@@ -217,17 +390,16 @@ def cmd_status():
         print("    → 安装：minime install")
 
     # ---- 服务
-    import urllib.request  # noqa: PLC0415
-    try:
-        with urllib.request.urlopen("http://127.0.0.1:8765/api/health", timeout=3) as r:
-            h = json.loads(r.read().decode())
-        print(f"  Web 面板：运行中 · 端口 {h.get('port')} · 已运行 {h.get('uptime_s')}s")
+    h = _web_health()
+    if h:
+        print(f"  Web 面板：运行中 · 端口 {h.get('port')} · 已运行 {h.get('uptime_s')}s"
+              f" · pid {h.get('pid', '-')}")
         if h.get("code_stale"):
             print(f"    ! 代码已更新但服务在跑旧版本（{', '.join(h['code_stale'])}）"
-                  f" → 重启：minime web")
+                  f" → 重启：minime web --restart")
         if h.get("jobs"):
             print(f"    后台任务：{', '.join(h['jobs'])}")
-    except Exception:  # noqa: BLE001
+    else:
         print("  Web 面板：未运行  → 启动：minime web")
     print(f"  日志：{LOG_PATH}")
     print("  下一步：minime doctor 做完整自检")
@@ -237,7 +409,14 @@ def cmd_status():
 def cmd_llm(argv):
     """LLM 归纳进度；--run N 时后台跑一批（可 Ctrl-C 断开，任务继续）。"""
     import progress as P  # noqa: PLC0415
-    if "--run" not in argv:
+    # --by-source 只是看明细，不启动任务
+    if "--by-source" in argv and "--run" not in argv and "--all" not in argv:
+        pr = P.llm_progress()
+        for k, v in pr["by_source"].items():
+            print(f"  {k:20s} {v}")
+        return 0
+    # 规则：有 --all 或 --run 才启动；都没有就是看进度
+    if "--run" not in argv and "--all" not in argv:
         pr = P.llm_progress()
         mark = "已启用" if pr["enabled"] else "未启用"
         print(f"LLM 归纳：{mark} · 模型 {pr['model']} · {pr['base_url']}")
@@ -250,11 +429,8 @@ def cmd_llm(argv):
         print(f"  来源明细：minime llm --by-source")
         if pr["pending"]:
             print(f"  → 跑一批：minime llm --run 20 · 全部：minime llm --all")
-        return 0
-    if "--by-source" in argv:
-        pr = P.llm_progress()
-        for k, v in pr["by_source"].items():
-            print(f"  {k:20s} {v}")
+        elif pr.get("running"):
+            print(f"  ! 正在后台归纳：{', '.join(pr['running'])}")
         return 0
     n = 0 if "--all" in argv else 20
     if "--run" in argv:
@@ -264,10 +440,41 @@ def cmd_llm(argv):
             print("  ! --run 后面需要数字，例如 --run 20", file=sys.stderr)
             return 2
     j = P.start("llm", P.run_llm_job, n)
-    scope = "全部待处理轮次" if n == 0 else f"上限 {n} 轮"
-    print(f"已在后台启动归纳：{j['job_id']}（{scope}）")
-    print("  跟踪进度：minime llm   或不打断地看日志：minime logs -f")
-    return 0
+    if j.get("reused"):
+        print(f"已有归纳任务在跑：{j['job_id']}（改为跟踪它的进度）")
+    else:
+        scope = "全部待处理轮次" if n == 0 else f"上限 {n} 轮"
+        print(f"开始归纳：{j['job_id']}（{scope}）")
+    # 任务跑在 daemon 线程里，父进程一退就被杀掉；这里必须等到它结束。
+    # Ctrl-C 只断开跟踪，任务仍在 Web 面板进程内继续（如需严格后台常驻请用面板触发）。
+    jid = j["job_id"]
+    last = ""
+    try:
+        while True:
+            time.sleep(2)
+            cur = P.job(jid)
+            if not cur:
+                break
+            msg = cur.get("message") or ""
+            if msg and msg != last:
+                last = msg
+                print(f"  {msg}")
+            if cur["status"] != "running":
+                break
+    except KeyboardInterrupt:
+        print("\n已断开跟踪；归纳仍在后台继续，查看进度：minime llm")
+        return 0
+    cur = P.job(jid) or {}
+    res = cur.get("result") or {}
+    if cur.get("status") == "ok":
+        print(f"归纳完成：处理 {res.get('targets')} 轮 · 新增知识 {res.get('created')} 条"
+              f" · 无结论 {res.get('skipped')} · 失败 {res.get('errors')}")
+        return 0
+    if cur.get("status") == "cancelled":
+        print("归纳已取消")
+        return 130
+    print(f"! 归纳失败：{res.get('error') or cur.get('message') or '未知错误'}", file=sys.stderr)
+    return 1
 
 
 def cmd_embed(argv):
@@ -338,9 +545,29 @@ def cmd_embed(argv):
     if j.get("reused"):
         print(f"已有向量重算任务在跑：{j['job_id']}（模型 {mdl}）")
     else:
-        print(f"已在后台启动向量重算：{j['job_id']}（模型 {mdl}）")
-    print("  跟踪进度：minime embed --status")
-    return 0
+        print(f"开始向量重算：{j['job_id']}（模型 {mdl}）")
+    # 同 cmd_llm：任务在线程里跑，父进程提前退出会把它一起结束
+    jid = j["job_id"]
+    try:
+        while True:
+            time.sleep(2)
+            cur = P.job(jid)
+            if not cur or cur["status"] != "running":
+                break
+    except KeyboardInterrupt:
+        print("\n已断开跟踪；向量重算仍在后台继续，查看进度：minime embed --status")
+        return 0
+    cur = P.job(jid) or {}
+    res = cur.get("result") or {}
+    if cur.get("status") == "ok":
+        print(f"完成：模型 {res.get('model')} · 处理 {res.get('processed')} 条"
+              f" · 新算向量 {res.get('embedded')} 条")
+        return 0
+    if cur.get("status") == "cancelled":
+        print("已取消")
+        return 130
+    print(f"! {res.get('error') or cur.get('message') or '未知错误'}", file=sys.stderr)
+    return 1
 
 
 def cmd_config(argv):
@@ -392,7 +619,9 @@ def cmd_set(argv):
     shown = r["applied"].get(key)
     print(f"已保存 {key} = {shown if shown is not None else '（已清空，回退默认）'}")
     if key.startswith("web."):
-        print("  → 需重启面板生效：minime web")
+        print("  → 需重启面板生效：minime web --restart")
+    elif key == "llm.max_atoms_per_run":
+        print("  → 下一轮定时任务/归纳即按新上限消费积压（积压多时先跑一次：minime llm --all）")
     elif key == "answer.mode":
         print("  → 已开关：llm=大模型作答（向量检索开启）/ rules=关键词规则作答（不调用模型）")
     elif key in ("embedding.model", "embedding.text_mode"):
@@ -612,6 +841,45 @@ def cmd_link():
     return 0
 
 
+def _persistent_home():
+    """定时任务与后台服务使用的数据目录：忽略临时目录里的 MINIME_HOME。
+
+    在临时目录（mktemp / CI 冒烟）里跑过一次 install，plist 里的日志路径与
+    MINIME_HOME 就会永久指向 /var/folders/...，机器重启后目录被清掉，
+    launchd 无法写日志，任务直接以 EX_CONFIG 退出。
+    """
+    import tempfile  # noqa: PLC0415
+    home = paths.DATA_ROOT
+    tmp = os.path.realpath(tempfile.gettempdir())
+    if os.path.realpath(home).startswith(tmp):
+        os.environ.pop("MINIME_HOME", None)
+        return paths._default_home()
+    return home
+
+
+def _scheduled_python():
+    """定时任务用的解释器：优先当前解释器，但必须能 import collector 的硬依赖。
+
+    launchd 不继承 shell 环境，用错解释器会静默丢数据源：py3.12 缺 cryptography
+    时 cloud_sessions 每轮都报 unavailable，表现为「采集成功但没有新知识」。
+    """
+    if _has_deps(PY):
+        return PY
+    cand = os.path.join(os.path.expanduser("~"), ".local/pipx/venvs/minime/bin/python")
+    if os.path.exists(cand) and _has_deps(cand):
+        print(f"  ! 当前解释器 {PY} 缺少可选依赖，定时任务改用 {cand}")
+        return cand
+    print(f"  ! 当前解释器 {PY} 缺少 cryptography/numpy，定时采集会降级")
+    print(f"    → 安装：{PY} -m pip install cryptography numpy")
+    return PY
+
+
+def _has_deps(py_exe):
+    r = subprocess.run([py_exe, "-c", "import cryptography"],
+                       capture_output=True)
+    return r.returncode == 0
+
+
 def cmd_install():
     import settings_schema as SS  # noqa: PLC0415
     sched = (SS.load().get("schedule") or {})
@@ -630,21 +898,29 @@ def cmd_install():
     # 注意：launchd 不继承登录 shell 的环境。必须显式给 HOME/PATH，
     # 否则 ~ 展开失败、git 找不到，LLM 步骤会卡住。
     # StandardOutPath 不能指向 /Volumes 下的卷，否则任务以 78 (EX_CONFIG) 退出。
-    os.makedirs(paths.LOGS, exist_ok=True)
-    out_log = os.path.join(paths.LOGS, "launchd.out")
-    err_log = os.path.join(paths.LOGS, "launchd.err")
+    # 也不能跟着运行时的 MINIME_HOME 走：在临时目录里装过一次，plist 就会永久指向
+    # /var/folders/...，重启后日志目录消失，直接从 doctor 里看不到任何输出。
+    home = _persistent_home()
+    logs_dir = os.path.join(home, "store", "logs")
+    os.makedirs(logs_dir, exist_ok=True)
+    out_log = os.path.join(logs_dir, "launchd.out")
+    err_log = os.path.join(logs_dir, "launchd.err")
     # 不传 --fast / --no-llm：轨迹抽取必须跑，是否归纳交给运行时配置决定。
     # 否则安装时快照的参数会写死，用户之后在设置里开启 LLM 也不会生效。
+    # MINIME_HOME 必须写进 plist：launchd 不继承 shell 环境，否则任务会回落到
+    # 默认数据目录，与手动执行读到不同的库。
+    py_exe = _scheduled_python()
     plist = f"""<?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0"><dict>
   <key>Label</key><string>{TASK_NAME}</string>
-  <key>ProgramArguments</key><array><string>{PY}</string>
+  <key>ProgramArguments</key><array><string>{py_exe}</string>
     <string>{ROOT}/run/pipeline.py</string></array>
   <key>WorkingDirectory</key><string>{ROOT}</string>
   <key>EnvironmentVariables</key><dict>
     <key>HOME</key><string>{os.path.expanduser("~")}</string>
-    <key>PATH</key><string>{os.path.dirname(PY)}:/opt/homebrew/bin:/usr/bin:/bin:/usr/sbin:/sbin</string>
+    <key>MINIME_HOME</key><string>{home}</string>
+    <key>PATH</key><string>{os.path.dirname(py_exe)}:/opt/homebrew/bin:/usr/bin:/bin:/usr/sbin:/sbin</string>
   </dict>
   <key>StartInterval</key><integer>{minutes * 60}</integer>
   <key>RunAtLoad</key><true/>
@@ -675,8 +951,9 @@ def cmd_install():
 def _install_windows(minutes):
     """Windows 用计划任务（schtasks）实现定时采集。"""
     pipeline = os.path.join(ROOT, "run", "pipeline.py")
-    os.makedirs(paths.LOGS, exist_ok=True)
-    tr = f'"{PY}" "{pipeline}"'
+    _persistent_home()   # 清掉临时目录里的 MINIME_HOME，子进程继承正确数据目录
+    py_exe = _scheduled_python()
+    tr = f'"{py_exe}" "{pipeline}"'
     r = subprocess.run(["schtasks", "/Create", "/F", "/SC", "MINUTE",
                         "/MO", str(minutes), "/TN", TASK_NAME, "/TR", tr],
                        capture_output=True, text=True)
@@ -779,8 +1056,7 @@ def main():
             print(f"! {tip}")
         return _run("pipeline/selftest.py", *(["--json"] if "--json" in rest else []))
     if cmd == "web":
-        _check_port()
-        return _run("web/server.py")
+        return cmd_web(rest)
     if cmd == "mcp":
         return _run("mcp_server/server.py", *rest)
     if cmd == "watch":

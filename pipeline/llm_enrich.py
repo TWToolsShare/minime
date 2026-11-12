@@ -7,14 +7,18 @@
 输出：新 atom（kind=decision/preference/troubleshooting/pattern/insight），
       或对已有 atom 的强化（supersede / 提升 veracity）。
 """
+import http.client
 import json
 import os
 import re
+import socket
 import sqlite3
 import sys
+import threading
 import time
 import urllib.error
 import urllib.request
+from urllib.parse import urlsplit
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import config  # noqa: E402
@@ -62,12 +66,49 @@ def llm_chat(cfg, messages, timeout=None):
     if c.get("disable_thinking", True):
         payload["chat_template_kwargs"] = {"enable_thinking": False}
     body = json.dumps(payload).encode()
-    req = urllib.request.Request(url, data=body, headers={
-        "Content-Type": "application/json",
-        "Authorization": f"Bearer {c.get('api_key') or 'none'}",
-    }, method="POST")
-    with urllib.request.urlopen(req, timeout=timeout or c.get("timeout_s", 120)) as r:
-        data = json.loads(r.read().decode("utf-8", "replace"))
+    t = timeout or c.get("timeout_s", 120)
+    # urlopen 的 timeout 只管「单次 read」，上游一边缓慢吐字一边不结束就会把计时
+    # 不断重置，一条请求能挂十几分钟并长期占着流水线锁。这里用 watchdog 直接
+    # shutdown 底层 socket，让阻塞中的 read 立即抛错退出。
+    # 注意：http.client 在 getresponse() 里会把 conn.sock 换成文件包装层，
+    # 所以必须提前显式 connect 并留住真实 socket 引用再发请求。
+    hard = t + 15
+    sock_box = []
+    fired = []
+
+    def _abort():
+        fired.append(1)
+        if sock_box:
+            try:
+                sock_box[0].shutdown(socket.SHUT_RDWR)
+            except OSError:
+                pass
+
+    watchdog = threading.Timer(hard, _abort)
+    watchdog.daemon = True
+    watchdog.start()
+    u = urlsplit(url)
+    conn = None
+    try:
+        conn = http.client.HTTPSConnection(u.hostname, u.port, timeout=t) \
+            if u.scheme == "https" else http.client.HTTPConnection(u.hostname, u.port, timeout=t)
+        conn.connect()
+        sock_box.append(conn.sock)
+        conn.request("POST", u.path or "/", body=body, headers={
+            "Content-Type": "application/json",
+            "Authorization": f"Bearer {c.get('api_key') or 'none'}",
+        })
+        raw = conn.getresponse().read()
+        if fired:
+            raise TimeoutError(f"LLM 响应超过 {hard}s 未完成")
+        data = json.loads(raw.decode("utf-8", "replace"))
+    finally:
+        watchdog.cancel()
+        if conn is not None:
+            try:
+                conn.close()
+            except Exception:  # noqa: BLE001
+                pass
     msg = data["choices"][0]["message"]
     return msg.get("content") or msg.get("reasoning_content") or ""
 

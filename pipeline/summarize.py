@@ -6,6 +6,7 @@
 """
 import hashlib
 import os
+import sqlite3
 import sys
 import time
 
@@ -21,6 +22,17 @@ SYSTEM = """你是知识库编辑。把用户提供的文本压缩成不超过 2
 class Summarizer:
     def __init__(self, conn, cfg):
         self.conn = conn
+        # 摘要缓存单独用短连接：normalize 在重建模式下用一条长事务连接，
+        # 面板/定时任务同时在写 kb.db，复用主连接会在缓存写回时撞上
+        # database is locked 并让整个清洗崩溃。缓存只是优化，失败就退回截断。
+        self.db_path = None
+        try:
+            for row in conn.execute("PRAGMA database_list"):
+                if row[1] == "main":
+                    self.db_path = row[2]
+                    break
+        except Exception:  # noqa: BLE001
+            pass
         self.llm = (cfg or {}).get("llm") or {}
         # 定时任务用 --no-llm 时，摘要也必须停，否则会拖住清洗并长时间占用写锁
         self.enabled = bool(self.llm.get("enabled")) and not os.environ.get(
@@ -40,13 +52,66 @@ class Summarizer:
         self._ensure()
 
     def _ensure(self):
-        self.conn.execute("""
-            CREATE TABLE IF NOT EXISTS summary_cache(
-              sig        TEXT PRIMARY KEY,
-              model      TEXT NOT NULL,
-              summary    TEXT NOT NULL,
-              created_at INTEGER NOT NULL)""")
-        self.conn.commit()
+        try:
+            self.conn.execute("""
+                CREATE TABLE IF NOT EXISTS summary_cache(
+                  sig        TEXT PRIMARY KEY,
+                  model      TEXT NOT NULL,
+                  summary    TEXT NOT NULL,
+                  created_at INTEGER NOT NULL)""")
+            self.conn.commit()
+        except sqlite3.Error:
+            pass
+
+    def _cache_get(self, sig):
+        """读缓存：优先短连接，锁被占用时退回主连接（WAL 下读基本不阻塞）。"""
+        c = self._short()
+        if c is not None:
+            try:
+                row = c.execute(
+                    "SELECT summary FROM summary_cache WHERE sig=?", (sig,)).fetchone()
+                return row[0] if row else None
+            except sqlite3.Error:
+                pass
+            finally:
+                try:
+                    c.close()
+                except sqlite3.Error:
+                    pass
+        try:
+            row = self.conn.execute(
+                "SELECT summary FROM summary_cache WHERE sig=?", (sig,)).fetchone()
+            return row[0] if row else None
+        except sqlite3.Error:
+            return None
+
+    def _cache_put(self, sig, summary):
+        """写缓存：短连接 + 短超时，抢不到锁就放弃（缓存只是优化）。"""
+        c = self._short()
+        if c is None:
+            return
+        try:
+            c.execute(
+                "INSERT OR REPLACE INTO summary_cache(sig,model,summary,created_at)"
+                " VALUES (?,?,?,?)", (sig, self.model, summary, int(time.time())))
+            c.commit()
+        except sqlite3.Error:
+            pass
+        finally:
+            try:
+                c.close()
+            except sqlite3.Error:
+                pass
+
+    def _short(self):
+        if not self.db_path:
+            return None
+        try:
+            c = sqlite3.connect(self.db_path, timeout=5)
+            c.execute("PRAGMA busy_timeout=5000")
+            return c
+        except sqlite3.Error:
+            return None
 
     def _sig(self, text):
         raw = f"{self.model}\0{text}"
@@ -59,11 +124,10 @@ class Summarizer:
         if len(body) <= self.threshold:
             return body[:160]
         sig = self._sig(body)
-        row = self.conn.execute(
-            "SELECT summary FROM summary_cache WHERE sig=?", (sig,)).fetchone()
-        if row:
+        cached = self._cache_get(sig)
+        if cached:
             self.cached += 1
-            return row[0]
+            return cached
         # 未启用、预算用完或连续失败时都不调模型；有缓存则已在上面复用，
         # 这样 --no-llm 的定时清洗不会覆盖此前生成的 LLM 摘要
         if not self.enabled or (self.budget and self.used >= self.budget):
@@ -74,8 +138,6 @@ class Summarizer:
             return body[:160]
         self.used += 1
         try:
-            # 调模型前先放开写锁，避免几十秒的网络等待卡住面板或其他流水线
-            self.conn.commit()
             out = self._call(body[:8000])
         except Exception:  # noqa: BLE001
             self.failed += 1
@@ -88,18 +150,19 @@ class Summarizer:
         if not out:
             return body[:160]
         out = out[:400]
-        self.conn.execute(
-            "INSERT OR REPLACE INTO summary_cache(sig,model,summary,created_at)"
-            " VALUES (?,?,?,?)", (sig, self.model, out, int(time.time())))
-        self.conn.commit()
+        self._cache_put(sig, out)
         return out
 
     def _call(self, text):
         import llm_enrich as L  # noqa: PLC0415 — 延迟导入，避免与 normalize 循环依赖
-        timeout = min(int(self.llm.get("timeout_s") or 120), 90)
-        # 剩余预算比单次超时还短时按剩余算，避免最后一两次把整轮拖过截止时间
-        left = max(1.0, self.deadline - time.time())
-        timeout = min(timeout, left)
+        # 剩余预算比单次超时还短时按剩余算，避免最后一两次把整轮拖过截止时间。
+        # 注意不能给 left 兜底成 1 秒：deadline 过了之后每个请求都会退化成
+        # 1 秒超时再重试，一个卡住的上游生成会被无限重发，整轮永远结束不了。
+        left = self.deadline - time.time()
+        if left <= 0:
+            self.timeout_hits += 1
+            return ""
+        timeout = min(int(self.llm.get("timeout_s") or 120), 90, left)
         return L.llm_chat({"llm": self.llm}, [
             {"role": "system", "content": SYSTEM},
             {"role": "user", "content": text},

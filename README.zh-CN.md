@@ -60,6 +60,8 @@ minime web
 
 浏览器访问 **http://127.0.0.1:8765/**。
 
+> `minime web` 默认后台常驻：命令立刻返回，关掉终端也不会停。`--stop` 停止、`--restart` 重启、`--foreground` 前台调试。
+
 第一次进来，建议按这个顺序走一遍：
 
 1. 顶栏 **处理进度** → 点「完整更新」→ 等它跑完
@@ -272,7 +274,9 @@ minime migrate --from /path/to/old/minime
 
 ```bash
 # 日常
-minime web                     打开面板
+minime web                     打开面板（后台常驻，关终端不停）
+minime web --stop              停止后台面板
+minime web --restart           重启后台面板
 minime status                  一眼看全：采集 / 归纳 / 定时 / 服务
 minime chat "问题"             命令行问一句
 

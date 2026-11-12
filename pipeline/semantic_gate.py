@@ -180,7 +180,11 @@ def run(conn=None, dry_run=False, limit=None, restore=False):
                 "seeds": len(seeds), "min_score": min_score}
 
     # 知识向量：命中缓存复用，缺失的批量请求（与检索共用同一份 atom_embedding）
-    vectors, embedded = embed.vectors_for(conn, c, rows)
+    # 整轮向量化设总时限：首次全量有几万条，模型慢一点就能把清洗拖到几十分钟，
+    # 而清洗此时正持写锁。超时只是少算一部分向量，下一轮自动补齐。
+    budget = int(c.get("gate_time_budget_s") or 600)
+    deadline = time.monotonic() + budget if budget > 0 else None
+    vectors, embedded = embed.vectors_for(conn, c, rows, deadline=deadline)
 
     # 种子向量也要缓存：主题种子每轮都一样，没必要重复请求
     seed_vecs, seed_failed = [], 0

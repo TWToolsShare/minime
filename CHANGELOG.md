@@ -1,5 +1,32 @@
 # 更新记录
 
+## 未发布
+
+### 改进
+
+- **`minime web` 默认后台常驻**：此前是前台阻塞运行，退出终端或断开 SSH 面板就停。现在默认启动一个脱离终端的后台进程并立即返回（约 0.3 秒），关掉终端仍继续服务。
+  - 幂等：已在运行时不会重复拉起，直接显示端口与 pid。
+  - 新增 `minime web --stop` 停止、`minime web --restart` 重启、`minime web --foreground` 前台调试（CI / 排障）。
+  - PID 记录在 `<数据目录>/store/logs/web.pid`，进程输出追加到 `web.log`；停止前会校验进程存活，避免 PID 复用误杀。
+  - `/api/health` 增加 `pid` 字段；`minime status` 显示面板 pid，并改用配置里的端口探测。
+  - `minime set web.*` 的提示改为 `minime web --restart`。
+- CI 冒烟新增「后台常驻 + 幂等 + --stop」用例；前台用例改用 `web --foreground`。
+
+### 修复
+
+- **定时任务用错解释器，云端会话静默失效**：`minime install` 把当前解释器写进 plist，而 launchd 不继承 shell 环境。若该解释器缺 `cryptography`（如 Homebrew 3.12），`cloud_sessions` 每轮都 `unavailable`，`status` 仍显示「采集成功」，表现为「采集没报错但没有新知识」。现在安装时会校验依赖，缺依赖则切到 pipx venv 并在安装输出里说明。
+- **plist 的日志路径与 MINIME_HOME 跟着临时目录走**：在 `mktemp` 目录里跑过一次 `install`，plist 就永久指向 `/var/folders/...`，重启后日志目录消失、任务以 EX_CONFIG 退出。现在固定使用持久数据目录，并把 `MINIME_HOME` 写进 plist，避免定时任务与手动执行读到不同的库。
+- **`minime llm --all` 只打印进度、不启动归纳**：`cmd_llm` 的分支判断在 `--run` 不存在时就返回，`--all` 被吞掉。
+- **`minime llm` / `minime embed` 启动后任务立即消失**：任务跑在 daemon 线程，CLI 打印完提示就退出，主线程结束会把线程一起杀掉，任务表里只剩一条 `running` 僵尸记录。现在 CLI 会跟踪到任务结束，Ctrl-C 只断开跟踪。
+- **`llm.max_atoms_per_run` 默认值偏小**：默认每轮只归纳 20 轮，采集速度快于归纳速度时会持续积压（本地实测积压 149 轮）。默认值调为 40，并在 `minime set` 提示里说明作用。
+- **流水线卡在上游模型请求时会一直占着 `.pipeline.lock`**：`urlopen(timeout=)` 的超时只管单次 `read`，上游缓慢吐字会不断重置计时，单请求能挂十几分钟。`llm_chat` 与 `embed_texts` 现改为 `http.client` + 提前 `connect()` 保存真实 socket，再由 watchdog 到点 `shutdown()` 直接打断阻塞读。
+- **清洗收尾的摘要步骤会拖垮整轮**：`Summarizer._call` 在时间预算用完后把剩余时间兜底成 1 秒，导致每个请求都超时再重试，整轮无穷无尽。现在预算耗尽直接返回截断摘要。
+- **摘要缓存写回撞 `database is locked` 使清洗直接失败**：重建模式用单条长事务写 `kb.db`，缓存写回复用主连接必然冲突。现在缓存读写走独立短连接 + 5 秒 `busy_timeout`，抢不到锁就静默降级（缓存只是优化）。
+- **首次全量向量化把清洗拖成数十分钟**：
+  - `vectors_for` 原来用 `SELECT atom_id, sig, vec` 做缓存校验，4096 维向量一条约 16 KB 且内联在索引页里，每批都要读走几十 MB。现在先只取 `sig` 判定，命中后再单独取 `vec`。
+  - 新增 `embedding.gate_time_budget_s`（默认 600 秒）：整轮向量化超时即停止回算，缺的向量下一轮自动补齐，避免长时间持锁。
+  - 向量改为每批提交，中途中断不会丢掉已算好的部分；此前只在全部结束时提交，进度在库里完全不可见。
+
 ## v0.1.0-pre.15（2026-10-29）
 
 ### 修复

@@ -65,11 +65,12 @@ def check_cli(home):
 
 def check_web(home):
     env = {**os.environ, "MINIME_HOME": home, "PYTHONIOENCODING": "utf-8"}
-    proc = subprocess.Popen([PY, "-m", "minime_launcher", "web"], env=env,
+    proc = subprocess.Popen([PY, "-m", "minime_launcher", "web", "--foreground"], env=env,
                             stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     try:
         health = wait_http(f"http://127.0.0.1:{PORT}/api/health")
         assert health["ok"] is True and health["atoms"] == 0, health
+        assert health["pid"] > 0, health
         with urllib.request.urlopen(f"http://127.0.0.1:{PORT}/", timeout=5) as r:
             assert r.status == 200
             assert "<html" in r.read().decode("utf-8", "replace").lower()
@@ -79,6 +80,31 @@ def check_web(home):
             proc.wait(timeout=10)
         except subprocess.TimeoutExpired:
             proc.kill()
+
+
+def check_web_background(home):
+    """默认 minime web 应后台常驻：CLI 立即返回，服务继续可用，--stop 能收掉。"""
+    env = {**os.environ, "MINIME_HOME": home, "PYTHONIOENCODING": "utf-8"}
+    p = run("web", env=env)
+    assert p.returncode == 0, p.stdout + p.stderr
+    health = wait_http(f"http://127.0.0.1:{PORT}/api/health", timeout=30)
+    pid = health.get("pid")
+    assert pid and pid != os.getpid(), health
+    try:
+        p2 = run("web", env=env)   # 幂等：不重复拉起
+        assert p2.returncode == 0 and "已在运行" in p2.stdout, p2.stdout
+        assert wait_http(f"http://127.0.0.1:{PORT}/api/health")["pid"] == pid
+    finally:
+        p3 = run("web", "--stop", env=env)
+        assert p3.returncode == 0, p3.stdout + p3.stderr
+    end = time.time() + 15
+    while time.time() < end:
+        try:
+            urllib.request.urlopen(f"http://127.0.0.1:{PORT}/api/health", timeout=1)
+        except Exception:  # noqa: BLE001
+            return
+        time.sleep(0.3)
+    raise SystemExit("minime web --stop 之后面板仍在响应")
 
 
 def check_modules(tmp):
@@ -148,14 +174,16 @@ def main():
     with open(os.path.join(home, "config.json"), "w", encoding="utf-8") as f:
         json.dump({"web": {"port": PORT}}, f)
 
-    print("1/4 CLI（--help / status / doctor）")
+    print("1/5 CLI（--help / status / doctor）")
     check_cli(home)
-    print("2/4 模块（paths / embed / normalize / schema+FTS）")
+    print("2/5 模块（paths / embed / normalize / schema+FTS）")
     check_modules(tmp)
-    print("3/4 旧目录迁移")
+    print("3/5 旧目录迁移")
     check_migrate(tmp)
-    print("4/4 Web 面板")
+    print("4/5 Web 面板（前台）")
     check_web(home)
+    print("5/5 Web 面板（后台常驻 + --stop）")
+    check_web_background(home)
     print("冒烟通过")
 
 

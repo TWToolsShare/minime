@@ -67,6 +67,7 @@ def api_health():
     except sqlite3.Error:
         atoms = 0
     return {"ok": True, "uptime_s": int(time.time() - STARTED_AT), "port": PORT,
+            "pid": os.getpid(),
             "atoms": atoms,
             "jobs": list((P.active_job() or {}).keys()),
             "code_stale": stale}

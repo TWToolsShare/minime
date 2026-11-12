@@ -40,6 +40,8 @@ DEFAULTS = {
         "enabled": True, "base_url": "", "model": "", "api_key": "",
         "min_score": 0.28, "batch_size": 32, "seeds": [],
         "query_timeout_s": 4,
+        # 清洗时整轮向量化的总时限（秒）：超时停止回算，缺的向量下轮补齐；0=不限
+        "gate_time_budget_s": 600,
         # 向量化用哪段文本：title_summary（标题+摘要）/ full（标题+正文）
         "text_mode": "title_summary",
         # 语义分类校准：用原型向量把泛化的 fact 归到 troubleshooting/decision/preference

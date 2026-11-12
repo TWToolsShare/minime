@@ -113,6 +113,10 @@ FIELDS = [
              "先用 python pipeline/semantic_gate.py --dry-run 预览命中数"},
     {"key": "embedding.batch_size", "env": "", "type": "int", "min": 1, "max": 256,
      "group": "向量检索（Embedding）", "label": "每批条数"},
+    {"key": "embedding.gate_time_budget_s", "env": "", "type": "int", "min": 0, "max": 7200,
+     "group": "向量检索（Embedding）", "label": "本轮回算向量时限（秒）",
+     "hint": "默认 600；清洗时整轮向量化的总时限，超时即停止回算（缺的向量下轮补齐），"
+             "避免模型变慢时整条流水线长时间持锁；0 表示不限"},
     {"key": "embedding.text_mode", "env": "", "type": "string",
      "group": "向量检索（Embedding）", "label": "向量化文本",
      "options": ["title_summary", "full"],
