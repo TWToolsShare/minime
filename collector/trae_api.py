@@ -10,11 +10,26 @@ sys.path.insert(0, os.path.dirname(__file__))
 import trae_auth  # noqa: E402
 
 OUT = os.path.join(os.path.dirname(__file__), "..", "run")
-BASE = "https://coresg-normal.trae.ai/api/remote/v1"
+# 各版本 agent 域名（来自对应版本 product.json bootConfig.agent.trae）
+BASE_BY_HOST = {
+    "https://api.trae.cn": "https://trae-api-cn.mchost.guru/api/remote/v1",
+}
+DEFAULT_BASE = "https://coresg-normal.trae.ai/api/remote/v1"
 
 
-def call(path, token, user_id, method="GET", body=None, extra=None, retries=2):
-    url = f"{BASE}{path}"
+def base_for(info):
+    """按登录态里的 host 选 agent API 域名：CN 版走 trae-api-cn，其余走国际版。"""
+    host = (info.get("host") or "").rstrip("/")
+    return BASE_BY_HOST.get(host, DEFAULT_BASE)
+
+
+BASE = DEFAULT_BASE
+
+
+def call(path, token, user_id, method="GET", body=None, extra=None, retries=2,
+         base=None):
+    base = base or BASE
+    url = f"{base}{path}"
     sep = "&" if "?" in url else "?"
     url = f"{url}{sep}user_id={user_id}"
     headers = {
@@ -46,7 +61,10 @@ def call(path, token, user_id, method="GET", body=None, extra=None, retries=2):
 def main():
     info = trae_auth.main_user_info()
     token, uid = info["token"], str(info["userId"])
-    print("user:", info["account"].get("username"), "scope:", info["account"].get("scope"))
+    global BASE  # noqa: PLW0603
+    BASE = base_for(info)
+    print("user:", info["account"].get("username"), "scope:", info["account"].get("scope"),
+          "base:", BASE)
 
     probes = [
         "/chat_sessions",

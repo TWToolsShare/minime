@@ -33,23 +33,46 @@ MANIFEST = paths.MANIFEST
 HOME = os.path.expanduser("~")
 
 
-def _trae_root():
-    """Trae 用户数据目录（可用 MINIME_TRAE_DIR 覆盖）。"""
+def _trae_roots():
+    """全部 Trae 版本的用户数据目录（可用 MINIME_TRAE_DIR 覆盖为单目录）。
+
+    国际版与 CN 版目录结构相同，返回存在的目录列表，按此顺序。
+    """
     env = os.environ.get("MINIME_TRAE_DIR")
     if env:
-        return os.path.abspath(os.path.expanduser(env))
-    if os.name == "nt":
-        return os.path.join(os.environ.get("APPDATA") or HOME, "Trae")
+        p = os.path.abspath(os.path.expanduser(env))
+        return [p] if os.path.isdir(p) else []
+    names = ["Trae", "Trae CN"]
+    out = []
+    for name in names:
+        if os.name == "nt":
+            p = os.path.join(os.environ.get("APPDATA") or HOME, name)
+        elif sys.platform == "darwin":
+            p = os.path.join(HOME, "Library/Application Support", name)
+        else:
+            p = os.path.join(os.environ.get("XDG_CONFIG_HOME")
+                             or os.path.join(HOME, ".config"), name)
+        if os.path.isdir(p):
+            out.append(p)
+    return out
+
+
+def _default_trae_root():
     if sys.platform == "darwin":
         return os.path.join(HOME, "Library/Application Support/Trae")
     return os.path.join(os.environ.get("XDG_CONFIG_HOME")
                         or os.path.join(HOME, ".config"), "Trae")
 
 
-TRAE = _trae_root()
-SNAPSHOT = os.path.join(TRAE, "ModularData/ai-agent/snapshot")
-WS_STORAGE = os.path.join(TRAE, "User/workspaceStorage")
-HISTORY = os.path.join(TRAE, "User/History")
+TRAE_ROOTS = _trae_roots()
+# 兼容旧引用：主目录（优先国际版）
+TRAE = TRAE_ROOTS[0] if TRAE_ROOTS else _default_trae_root()
+SNAPSHOT_DIRS = [os.path.join(r, "ModularData/ai-agent/snapshot") for r in TRAE_ROOTS]
+WS_STORAGE_DIRS = [os.path.join(r, "User/workspaceStorage") for r in TRAE_ROOTS]
+HISTORY_DIRS = [os.path.join(r, "User/History") for r in TRAE_ROOTS]
+SNAPSHOT = SNAPSHOT_DIRS[0] if SNAPSHOT_DIRS else os.path.join(TRAE, "ModularData/ai-agent/snapshot")
+WS_STORAGE = WS_STORAGE_DIRS[0] if WS_STORAGE_DIRS else os.path.join(TRAE, "User/workspaceStorage")
+HISTORY = HISTORY_DIRS[0] if HISTORY_DIRS else os.path.join(TRAE, "User/History")
 MEMORY = os.path.join(HOME, ".trae/memory")
 
 _REGISTRY = []

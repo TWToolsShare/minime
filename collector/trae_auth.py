@@ -31,20 +31,33 @@ _ZLE = bytes([31, 221, 168, 51, 136, 7, 199, 49, 177, 18, 16, 89, 39, 128, 236, 
               23, 43, 4, 126, 186, 119, 214, 38, 225, 105, 20, 99, 85, 33, 12, 125])
 MASK = bytes(a ^ b for a, b in zip(_GLE, _ZLE))
 
-def _trae_dir():
+def _trae_dirs():
+    """全部 Trae 版本的用户数据目录（可用 MINIME_TRAE_DIR 覆盖为单目录）。"""
     env = os.environ.get("MINIME_TRAE_DIR")
     if env:
-        return os.path.abspath(os.path.expanduser(env))
+        p = os.path.abspath(os.path.expanduser(env))
+        return [p] if os.path.isdir(p) else []
     home = os.path.expanduser("~")
     if os.name == "nt":
-        return os.path.join(os.environ.get("APPDATA") or home, "Trae")
+        base = os.environ.get("APPDATA") or home
+        names = ["Trae", "Trae CN"]
+        return [os.path.join(base, n) for n in names
+                if os.path.isdir(os.path.join(base, n))]
     if sys.platform == "darwin":
-        return os.path.join(home, "Library/Application Support/Trae")
-    return os.path.join(os.environ.get("XDG_CONFIG_HOME")
-                        or os.path.join(home, ".config"), "Trae")
+        base = os.path.join(home, "Library/Application Support")
+        names = ["Trae", "Trae CN"]
+        return [os.path.join(base, n) for n in names
+                if os.path.isdir(os.path.join(base, n))]
+    base = os.environ.get("XDG_CONFIG_HOME") or os.path.join(home, ".config")
+    names = ["Trae", "Trae CN"]
+    return [os.path.join(base, n) for n in names
+            if os.path.isdir(os.path.join(base, n))]
 
 
-TRAE_STORAGE = os.path.join(_trae_dir(), "User/globalStorage/storage.json")
+def _storage_paths():
+    return [os.path.join(d, "User/globalStorage/storage.json") for d in _trae_dirs()]
+
+
 JWT_FILE = os.path.expanduser("~/.trae/trae-jwt-token")
 
 
@@ -75,23 +88,33 @@ def decrypt_json(blob: bytes):
     return json.JSONDecoder().raw_decode(text[start:])[0]
 
 
-def load_auth_info():
-    """返回 {key: userInfo}，离线解出 Trae 登录态（含 access token / refresh token）。"""
-    data = json.load(open(TRAE_STORAGE, encoding="utf-8"))
+def load_auth_info(storage_path=None):
+    """返回 {(storage_path, key): userInfo}，离线解出 Trae 登录态。
+
+    遍历国际版与 CN 版的 storage.json；CN 版加密算法与国际版相同。
+    """
+    paths = [storage_path] if storage_path else _storage_paths()
     out = {}
-    for k, v in data.items():
-        if k.startswith("iCubeAuthInfo://") and isinstance(v, str) and len(v) > 100:
-            try:
-                out[k] = decrypt_json(base64.b64decode(v))
-            except Exception as e:  # noqa: BLE001
-                out[k] = {"_error": str(e)}
+    for sp in paths:
+        if not sp or not os.path.exists(sp):
+            continue
+        try:
+            data = json.load(open(sp, encoding="utf-8"))
+        except (OSError, ValueError):
+            continue
+        for k, v in data.items():
+            if k.startswith("iCubeAuthInfo://") and isinstance(v, str) and len(v) > 100:
+                try:
+                    out[(sp, k)] = decrypt_json(base64.b64decode(v))
+                except Exception as e:  # noqa: BLE001
+                    out[(sp, k)] = {"_error": str(e)}
     return out
 
 
 def main_user_info():
-    info = load_auth_info()
-    for k, v in info.items():
-        if "token" in v and v.get("account"):
+    """取第一个可用登录态（token + userId + host）。"""
+    for (sp, k), v in load_auth_info().items():
+        if "token" in v and v.get("userId") and v.get("account"):
             return v
     raise RuntimeError("no usable auth info found")
 
@@ -121,14 +144,13 @@ def jwt_claims(tok):
 
 
 if __name__ == "__main__":
-    info = load_auth_info()
-    for k, v in info.items():
+    for (sp, k), v in load_auth_info().items():
         if "_error" in v:
-            print(k, "ERR", v["_error"])
+            print(sp, k, "ERR", v["_error"])
             continue
-        print(k, "token_len=", len(v.get("token", "")),
-              "has_refresh=", bool(v.get("refreshToken")),
+        print(sp.split("/")[-2], k, "token_len=", len(v.get("token", "")),
               "userId=", v.get("userId"),
+              "host=", v.get("host"),
               "account=", json.dumps(v.get("account"), ensure_ascii=False)[:300])
     t = jwt_token()
     if t:

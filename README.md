@@ -143,7 +143,7 @@ Knowledge cited in a chat answer is also boosted automatically. That is the "get
 
 | Source | Configuration | What is collected |
 |---|---|---|
-| **Trae** | None | Session snapshots, cloud sessions, workspace file history, `~/.trae/memory` |
+| **Trae / Trae CN** | None | Session snapshots, cloud sessions, workspace file history, `~/.trae/memory` (both editions collected side by side) |
 | **Local docs / notes / code** | Required | Settings → **Local sources → Directories**, one path per line |
 | **Obsidian** | Usually none | Vaults are discovered automatically; frontmatter, `[[wikilinks]]`, and `#tags` are supported |
 | **WorkBuddy / WorkBuddy AI** | None | Sessions, long-term memory, and filled-in identity files |

@@ -25,34 +25,54 @@ class CloudAdapter(SourceAdapter):
     label = "Trae 云端会话"
     fix_hint = "重新登录 Trae 桌面端后重试；或在设置页关闭此源"
 
-    def _auth(self):
+    def _auth_infos(self):
+        """全部可用登录态（国际版 + CN 版各自独立采集）。"""
         import trae_auth  # noqa: PLC0415
-        info = trae_auth.main_user_info()
-        return info["token"], str(info["userId"])
+        infos = []
+        for (_sp, _k), v in trae_auth.load_auth_info().items():
+            if "token" in v and v.get("userId") and v.get("account"):
+                infos.append(v)
+        return infos
 
     def probe(self):
         try:
-            tok, uid = self._auth()
+            infos = self._auth_infos()
         except Exception as e:  # noqa: BLE001 — 解密失败/未登录都归为不可用
             return False, f"登录态不可用：{type(e).__name__}: {e}"
-        if not tok or not uid:
-            return False, "未取到有效 token/user_id"
-        return True, f"user_id={uid[:8]}…"
+        if not infos:
+            return False, "未取到有效登录态"
+        return True, f"{len(infos)} 个登录态（user_id={str(infos[0]['userId'])[:8]}…）"
 
     def collect(self):
         import trae_api  # noqa: PLC0415
-        tok, uid = self._auth()
-        st, body = trae_api.call("/chat_sessions", tok, uid)
-        if st != 200:
-            raise RuntimeError(f"list chat_sessions -> HTTP {st}")
-        sessions = json.loads(body).get("data", {}).get("items", [])
-        got = 0
-        for s in sessions:
-            sid = s["chat_session_id"]
-            st2, msgs = trae_api.call(f"/chat_sessions/{sid}/messages", tok, uid)
-            if st2 == 200:
-                put_raw(self.conn, self.kind, sid, msgs.encode())
-                got += 1
-            put_raw(self.conn, "cloud_session", sid,
-                    json.dumps(s, ensure_ascii=False).encode())
-        return {"sessions": len(sessions), "messages_fetched": got}
+        total_sessions = total_msgs = 0
+        errors = []
+        for info in self._auth_infos():
+            tok, uid = info["token"], str(info["userId"])
+            base = trae_api.base_for(info)
+            region = "cn" if "trae-api-cn" in base or "trae.cn" in (info.get("host") or "") else "intl"
+            try:
+                st, body = trae_api.call(base, "/chat_sessions", tok, uid)
+                if st != 200:
+                    errors.append(f"{region}: HTTP {st}")
+                    continue
+                sessions = json.loads(body).get("data", {}).get("items", [])
+                got = 0
+                for s in sessions:
+                    sid = s["chat_session_id"]
+                    st2, msgs = trae_api.call(base, f"/chat_sessions/{sid}/messages", tok, uid)
+                    if st2 == 200:
+                        put_raw(self.conn, self.kind, f"{region}:{sid}", msgs.encode())
+                        got += 1
+                    put_raw(self.conn, "cloud_session", f"{region}:{sid}",
+                            json.dumps(s, ensure_ascii=False).encode())
+                total_sessions += len(sessions)
+                total_msgs += got
+            except Exception as e:  # noqa: BLE001
+                errors.append(f"{region}: {type(e).__name__}: {e}")
+        if errors and not total_sessions:
+            raise RuntimeError("; ".join(errors))
+        result = {"sessions": total_sessions, "messages_fetched": total_msgs}
+        if errors:
+            result["errors"] = errors
+        return result
