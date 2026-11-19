@@ -42,6 +42,8 @@ import paths  # noqa: E402
 LOG_PATH = os.path.join(paths.LOGS, "minime.jsonl")
 TASK_NAME = "ai.minime.collect"
 PLIST = os.path.expanduser("~/Library/LaunchAgents/ai.minime.collect.plist")
+WEB_TASK_NAME = "ai.minime.web"
+WEB_PLIST = os.path.expanduser("~/Library/LaunchAgents/ai.minime.web.plist")
 
 USAGE = """minime — 个人知识库 / 决策分身
 
@@ -267,6 +269,9 @@ def _start_web():
 
 def _stop_web():
     """停止后台面板：只终止确认属于 minime 的进程，避免 PID 复用误杀。"""
+    if sys.platform == "darwin" and os.path.exists(WEB_PLIST):
+        # 面板由 launchd 管着时直接 kill 会被重新拉起，先卸载
+        subprocess.run(["launchctl", "unload", WEB_PLIST], capture_output=True)
     port = _web_port()
     h = _web_health(port)
     pid = (h or {}).get("pid") or _read_pid()
@@ -941,11 +946,65 @@ def cmd_install():
     print(f"  计划：每 {minutes} 分钟执行一次 minime update（采集按各源周期自动判断，未到点跳过）")
     print(f"  日志：{LOG_PATH} 与 {err_log}")
     print("  下一步：minime status 确认采集进度")
+    if sys.platform == "darwin":
+        _install_web_launchd()
     try:  # 主动安装即视为重新开启，清掉「用户要求不自动安装」标记
         os.remove(SCHEDULE_OFF)
     except OSError:
         pass
     return 0
+
+
+def _install_web_launchd():
+    """注册面板 LaunchAgent：登录自启、崩溃自动拉起，开机后面板一直可用。"""
+    if _web_launchd_running():
+        print("minime web 已由 launchd 管理，跳过面板注册")
+        return
+    home = _persistent_home()
+    web_log = os.path.join(home, "store", "logs", "web.launchd.out")
+    err_log = os.path.join(home, "store", "logs", "web.launchd.err")
+    os.makedirs(os.path.dirname(web_log), exist_ok=True)
+    py_exe = _scheduled_python()
+    plist = f"""<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0"><dict>
+  <key>Label</key><string>{WEB_TASK_NAME}</string>
+  <key>ProgramArguments</key><array><string>{py_exe}</string>
+    <string>{ROOT}/run/minime.py</string>
+    <string>web</string>
+    <string>--foreground</string></array>
+  <key>WorkingDirectory</key><string>{ROOT}</string>
+  <key>EnvironmentVariables</key><dict>
+    <key>HOME</key><string>{os.path.expanduser("~")}</string>
+    <key>MINIME_HOME</key><string>{home}</string>
+    <key>PATH</key><string>{os.path.dirname(py_exe)}:/opt/homebrew/bin:/usr/bin:/bin:/usr/sbin:/sbin</string>
+  </dict>
+  <key>RunAtLoad</key><true/>
+  <key>KeepAlive</key>
+  <dict>
+    <key>SuccessfulExit</key><false/>
+  </dict>
+  <key>StandardOutPath</key><string>{web_log}</string>
+  <key>StandardErrorPath</key><string>{err_log}</string>
+</dict></plist>
+"""
+    with open(WEB_PLIST, "w") as f:
+        f.write(plist)
+    subprocess.run(["launchctl", "unload", WEB_PLIST], capture_output=True)
+    r = subprocess.run(["launchctl", "load", WEB_PLIST], capture_output=True, text=True)
+    if r.returncode != 0:
+        print(f"minime: 面板 LaunchAgent 加载失败：{r.stderr.strip()}", file=sys.stderr)
+        print("  下一步：手动启动 minime web，或重试 minime install", file=sys.stderr)
+        return
+    print(f"已注册面板开机自启：{WEB_PLIST}")
+
+
+def _web_launchd_running():
+    """LaunchAgent 是否已加载（plist 在 + launchctl 里在册）。"""
+    if not os.path.exists(WEB_PLIST):
+        return False
+    r = subprocess.run(["launchctl", "list", WEB_TASK_NAME], capture_output=True)
+    return r.returncode == 0
 
 
 def _install_windows(minutes):
@@ -1003,6 +1062,10 @@ def cmd_uninstall():
             print(f"已移除定时任务：{PLIST}")
         else:
             print("没有安装定时任务")
+        if os.path.exists(WEB_PLIST):  # 面板自启一并移除，避免残留
+            subprocess.run(["launchctl", "unload", WEB_PLIST], capture_output=True)
+            os.remove(WEB_PLIST)
+            print(f"已移除面板自启：{WEB_PLIST}")
     elif os.name == "nt":
         r = subprocess.run(["schtasks", "/Delete", "/F", "/TN", TASK_NAME],
                            capture_output=True, text=True)
