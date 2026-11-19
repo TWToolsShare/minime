@@ -6,10 +6,15 @@
 
 - **处理进度页三步卡文案改为白话**：① 采集 → 「读取原始数据」、② 清洗成知识 → 「整理成知识」、③ LLM 归纳 → 「深度总结」，每张卡说明做什么、产出什么、是否安全。歧义最大的「重新清洗」按钮改为「整理新数据」，并明确「已有的知识不会丢失或被改动」。同步更新流程提示、帮助页与采集完成 toast；「更新知识库」「归纳全部」等按钮文案保留。
 
-## 未发布
+## v0.1.0rc17（2026-11-19）
 
 ### 改进
 
+- **采集支持 Trae CN 版**：此前只认国际版，CN 版用户（数据在 `~/Library/Application Support/Trae CN/`）等于没有 Trae 数据。现在采集器同时识别国际版与 CN 版，两版可并存、互不干扰：
+  - 快照 git、工作区索引、文件编辑历史遍历两个数据目录，归档 key 带 `intl:` / `cn:` 前缀避免会话 id 撞车。
+  - 登录态解密后按其中的 `host` 自动选云端入口：CN 版走 `trae-api-cn.mchost.guru`，国际版走 `coresg-normal.trae.ai`；每个登录态独立采集，一端失败不影响另一端。
+  - `MINIME_TRAE_DIR` 仍可指定单一目录（调试用）。
+- **`minime install` 顺带注册面板自启**：macOS 下同时写入 `ai.minime.web` LaunchAgent（登录自启、异常退出自动拉起），`minime web --stop` 与 `minime uninstall` 会先卸载 LaunchAgent，避免被重新拉起或残留。
 - **`minime web` 默认后台常驻**：此前是前台阻塞运行，退出终端或断开 SSH 面板就停。现在默认启动一个脱离终端的后台进程并立即返回（约 0.3 秒），关掉终端仍继续服务。
   - 幂等：已在运行时不会重复拉起，直接显示端口与 pid。
   - 新增 `minime web --stop` 停止、`minime web --restart` 重启、`minime web --foreground` 前台调试（CI / 排障）。
